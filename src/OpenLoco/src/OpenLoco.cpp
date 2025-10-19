@@ -831,10 +831,10 @@ namespace OpenLoco
         LOG_MEMBER(Company, performanceIndex);
         LOG_MEMBER(Company, competitorId);
         LOG_MEMBER(Company, ownerEmotion);
-        LOG_MEMBER(Company, colour);
+        LOG_MEMBER(Company, mainColours);
         LOG_MEMBER(Company, customVehicleColoursSet);
-        LOG_MEMBER(Company, face);
-        LOG_MEMBER(Company, headquarters);
+        LOG_MEMBER(Company, vehicleColours);
+        LOG_MEMBER(Company, headquartersZ);
         LOG_MEMBER(Company, headquartersX);
         LOG_MEMBER(Company, headquartersY);
         
