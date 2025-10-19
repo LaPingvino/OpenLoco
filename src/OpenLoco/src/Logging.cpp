@@ -23,7 +23,8 @@ namespace OpenLoco::Diagnostics::Logging
 
     static std::string getLogFileName()
     {
-        return fmt::format("openloco_{:%Y-%m-%d_%H_%M_%S}.log", fmt::localtime(std::time(nullptr)));
+        std::time_t t = std::time(nullptr);
+        return fmt::format("openloco_{:%Y-%m-%d_%H_%M_%S}.log", *std::localtime(&t));
     }
 
     static void cleanupLogFiles(const fs::path& logsFolderPath)
