@@ -57,30 +57,49 @@ namespace OpenLoco::Gfx
 
     void SoftwareDrawingEngine::initialize(SDL_Window* window)
     {
+        Logging::info("DRAWING ENGINE: Starting initialization...");
+        
+        Logging::info("DRAWING ENGINE: Setting SDL render driver hint to opengl...");
         SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengl");
 
+        Logging::info("DRAWING ENGINE: Creating hardware accelerated renderer...");
         _renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
         if (_renderer == nullptr)
         {
             // Try to fallback to software renderer.
-            Logging::warn("Hardware acceleration not available, falling back to software renderer.");
+            Logging::warn("DRAWING ENGINE: Hardware acceleration not available, falling back to software renderer.");
+            Logging::warn("DRAWING ENGINE: SDL Error: {}", SDL_GetError());
             _renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
             if (_renderer == nullptr)
             {
-                Logging::error("Unable to create hardware or software renderer: {}", SDL_GetError());
+                Logging::error("DRAWING ENGINE: Unable to create hardware or software renderer: {}", SDL_GetError());
                 std::abort();
             }
+            Logging::info("DRAWING ENGINE: Software renderer created successfully");
         }
+        else
+        {
+            Logging::info("DRAWING ENGINE: Hardware accelerated renderer created successfully");
+        }
+        
+        Logging::info("DRAWING ENGINE: Setting window reference...");
         _window = window;
+        
+        Logging::info("DRAWING ENGINE: Creating palette (CRITICAL - potential 64-bit crash point)...");
         createPalette();
+        Logging::info("DRAWING ENGINE: Palette created successfully - initialization complete!");
     }
 
     void SoftwareDrawingEngine::resize(const int32_t width, const int32_t height)
     {
+        Logging::info("DRAWING ENGINE: Starting resize to {}x{}", width, height);
+        
         // Scale the width and height by configured scale factor
+        Logging::info("DRAWING ENGINE: Getting scale factor from config...");
         const auto scaleFactor = Config::get().scaleFactor;
         const auto scaledWidth = (int32_t)(width / scaleFactor);
         const auto scaledHeight = (int32_t)(height / scaleFactor);
+        Logging::info("DRAWING ENGINE: Scale factor: {}, scaled size: {}x{}", scaleFactor, scaledWidth, scaledHeight);
 
         // Release old resources.
         if (_screenSurface != nullptr)
@@ -224,7 +243,14 @@ namespace OpenLoco::Gfx
     void SoftwareDrawingEngine::createPalette()
     {
         // Create a palette for the window
+        Logging::info("DRAWING ENGINE: Allocating SDL palette with 256 colors...");
         _palette = SDL_AllocPalette(256);
+        if (_palette == nullptr)
+        {
+            Logging::error("DRAWING ENGINE: Failed to allocate SDL palette: {}", SDL_GetError());
+            std::abort();
+        }
+        Logging::info("DRAWING ENGINE: SDL palette allocated successfully");
     }
 
     void SoftwareDrawingEngine::updatePalette(const PaletteEntry* entries, int32_t index, int32_t count)

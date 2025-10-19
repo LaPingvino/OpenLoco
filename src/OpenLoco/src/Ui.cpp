@@ -137,36 +137,55 @@ namespace OpenLoco::Ui
     // 0x00405409
     void createWindow(const Config::Display& cfg)
     {
+        Logging::info("UI INIT: Starting SDL2 video subsystem initialization...");
         if (SDL_Init(SDL_INIT_VIDEO) < 0)
         {
+            Logging::error("UI INIT: SDL2 video initialization failed: {}", SDL_GetError());
             throw Exception::RuntimeError("Unable to initialise SDL2 video subsystem.");
         }
+        Logging::info("UI INIT: SDL2 video subsystem initialized successfully");
 
         // Create the window
+        Logging::info("UI INIT: Getting window parameters...");
         auto desc = getWindowParams(cfg);
+        Logging::info("UI INIT: Window params - x:{}, y:{}, width:{}, height:{}, flags:{}", 
+                     desc.x, desc.y, desc.width, desc.height, desc.flags);
+        
+        Logging::info("UI INIT: Creating SDL2 window...");
         _window = SDL_CreateWindow("OpenLoco", desc.x, desc.y, desc.width, desc.height, desc.flags);
         if (_window == nullptr)
         {
+            Logging::error("UI INIT: SDL2 window creation failed: {}", SDL_GetError());
             throw Exception::RuntimeError("Unable to create SDL2 window.");
         }
+        Logging::info("UI INIT: SDL2 window created successfully");
 
 #ifdef _WIN32
         // Grab the HWND
+        Logging::info("UI INIT: Getting Windows system handle...");
         SDL_SysWMinfo wmInfo;
         SDL_VERSION(&wmInfo.version);
         if (SDL_GetWindowWMInfo(_window, &wmInfo) == SDL_FALSE)
         {
+            Logging::error("UI INIT: Failed to get Windows system handle: {}", SDL_GetError());
             throw Exception::RuntimeError("Unable to fetch SDL2 window system handle.");
         }
         _hwnd = wmInfo.info.win.window;
+        Logging::info("UI INIT: Windows system handle obtained successfully");
 #endif
 
+        Logging::info("UI INIT: Setting window icon...");
         setWindowIcon();
+        Logging::info("UI INIT: Window icon set successfully");
 
         // Create a palette for the window
+        Logging::info("UI INIT: Initializing drawing engine (CRITICAL - likely 64-bit crash point)...");
         auto& drawingEngine = Gfx::getDrawingEngine();
+        Logging::info("UI INIT: Got drawing engine reference, calling initialize...");
         drawingEngine.initialize(_window);
+        Logging::info("UI INIT: Drawing engine initialized, calling resize...");
         drawingEngine.resize(desc.width, desc.height);
+        Logging::info("UI INIT: Drawing engine resize completed - UI creation successful!");
     }
 
     static void setWindowIcon()

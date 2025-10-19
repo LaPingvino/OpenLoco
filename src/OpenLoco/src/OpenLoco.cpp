@@ -878,26 +878,59 @@ namespace OpenLoco
 
         try
         {
+            Logging::info("Starting OpenLoco initialization sequence...");
+            
+            Logging::info("Step 1: Initializing input shortcuts...");
             Input::Shortcuts::initialize();
+            Logging::info("Step 1: Input shortcuts initialized successfully");
 
+            Logging::info("Step 2: Reading configuration...");
             const auto& cfg = Config::read();
+            Logging::info("Step 2: Configuration read successfully");
+            
+            Logging::info("Step 3: Resolving environment paths...");
             Environment::resolvePaths();
+            Logging::info("Step 3: Environment paths resolved successfully");
 
+            Logging::info("Step 4: Creating UI window (CRITICAL STEP - likely crash point)...");
             Ui::createWindow(cfg.display);
+            Logging::info("Step 4: UI window created successfully");
+            
+            Logging::info("Step 5: Generating system statistics...");
             generateSystemStats();
+            Logging::info("Step 5: System statistics generated successfully");
+            
+            Logging::info("Step 6: Initializing audio/DirectSound...");
             Audio::initialiseDSound();
+            Logging::info("Step 6: Audio initialized successfully");
+            
+            Logging::info("Step 7: Starting main game loop...");
             run();
+            Logging::info("Step 7: Main game loop completed");
+            
+            Logging::info("All steps completed successfully, cleaning up...");
             exitCleanly();
         }
         catch (const std::exception& e)
         {
-            Logging::error("Exception: {}", e.what());
-            Ui::showMessageBox("Exception", e.what());
+            Logging::error("CRASH DEBUG: Caught std::exception during initialization: {}", e.what());
+            Logging::error("CRASH DEBUG: This indicates the crash occurred during one of the initialization steps");
+            try {
+                Ui::showMessageBox("OpenLoco 64-bit Debug", std::string("Exception during initialization: ") + e.what());
+            } catch (...) {
+                std::cerr << "FATAL: Exception during initialization and cannot show message box: " << e.what() << std::endl;
+            }
             exitCleanly();
         }
         catch (...)
         {
-            Ui::showMessageBox("Exception", "Unsure what threw the exception!");
+            Logging::error("CRASH DEBUG: Caught unknown exception during initialization");
+            Logging::error("CRASH DEBUG: This is likely a segfault or similar low-level crash");
+            try {
+                Ui::showMessageBox("OpenLoco 64-bit Debug", "Unknown exception during initialization - likely segfault");
+            } catch (...) {
+                std::cerr << "FATAL: Unknown exception during initialization and cannot show message box" << std::endl;
+            }
             exitCleanly();
         }
     }
