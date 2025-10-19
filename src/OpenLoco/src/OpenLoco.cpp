@@ -818,12 +818,36 @@ namespace OpenLoco
         LOG_STRUCT(Station);
         LOG_STRUCT(Town);
         
-        LOG_SEPARATOR("Company Structure Details");
-        // Note: These will fail to compile if the members don't exist, but that's okay for debugging
+        LOG_SEPARATOR("Company Structure Details - Finding the +4 Byte Difference");
+        LOG_NOTE("Expected vs Actual offsets (32-bit vs 64-bit):");
+        
+        // Log first 20 members to find where +4 starts
+        LOG_MEMBER(Company, name);
+        LOG_MEMBER(Company, ownerName);
+        LOG_MEMBER(Company, challengeFlags);
+        LOG_MEMBER(Company, cash);
+        LOG_MEMBER(Company, currentLoan);
+        LOG_MEMBER(Company, updateCounter);
+        LOG_MEMBER(Company, performanceIndex);
+        LOG_MEMBER(Company, competitorId);
+        LOG_MEMBER(Company, ownerEmotion);
+        LOG_MEMBER(Company, colour);
+        LOG_MEMBER(Company, customVehicleColoursSet);
+        LOG_MEMBER(Company, face);
+        LOG_MEMBER(Company, headquarters);
+        LOG_MEMBER(Company, headquartersX);
+        LOG_MEMBER(Company, headquartersY);
+        
+        // The failing ones from static assertions
         LOG_MEMBER(Company, companyValueHistory);
         LOG_MEMBER(Company, vehicleProfit);
         LOG_MEMBER(Company, challengeProgress);
         LOG_MEMBER(Company, activeEmotions);
+        
+        LOG_SEPARATOR("Size Analysis");
+        LOG_NOTE("Total size difference: 4 bytes (0x8FAC - 0x8FA8)");
+        LOG_NOTE("All measured offsets are +4 bytes from expected");
+        LOG_NOTE("This suggests a single size change early in the structure");
         
         Debug::StructureLayoutLogger::close();
         Logging::info("64-bit structure layout analysis saved to structure_layout_64bit.log");

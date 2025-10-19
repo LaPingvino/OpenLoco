@@ -47,9 +47,11 @@ namespace OpenLoco
             static constexpr size_t computeBlockSize()
             {
                 constexpr size_t numBits = byteAlignBits<TNumBits>();
-                if constexpr (numBits >= std::numeric_limits<uintptr_t>::digits)
+                // Cap at uint32_t (4 bytes) for save game compatibility
+                // This ensures BitSet<224> remains 28 bytes instead of 32 bytes
+                if constexpr (numBits >= 32)
                 {
-                    return sizeof(uintptr_t);
+                    return 4; // sizeof(uint32_t)
                 }
                 else
                 {
@@ -84,7 +86,7 @@ namespace OpenLoco
             static_assert(computeBlockSize<16>() == sizeof(uint16_t));
             static_assert(computeBlockSize<18>() == sizeof(uint32_t));
             static_assert(computeBlockSize<31>() == sizeof(uint32_t));
-            static_assert(computeBlockSize<33>() == sizeof(uintptr_t));
+            static_assert(computeBlockSize<33>() == sizeof(uint32_t));
 
             template<size_t TByteSize>
             struct StorageBlockType;
