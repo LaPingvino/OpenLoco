@@ -195,41 +195,92 @@ namespace OpenLoco
 
     static void initialise()
     {
+        Logging::info("INIT: Starting game initialization...");
+        
+        Logging::info("INIT: Getting platform time...");
         _last_tick_time = Platform::getTime();
+        Logging::info("INIT: Platform time obtained successfully");
 
+        Logging::info("INIT: Seeding random number generator...");
         std::srand(std::time(nullptr));
+        Logging::info("INIT: Random number generator seeded");
 
+        Logging::info("INIT: Allocating map elements...");
         World::TileManager::allocateMapElements();
+        Logging::info("INIT: Map elements allocated successfully");
+        
+        Logging::info("INIT: Resolving environment paths...");
         Environment::resolvePaths();
+        Logging::info("INIT: Environment paths resolved");
+        
+        Logging::info("INIT: Enumerating languages...");
         Localisation::enumerateLanguages();
+        Logging::info("INIT: Languages enumerated successfully");
+        
+        Logging::info("INIT: Loading language file...");
         Localisation::loadLanguageFile();
+        Logging::info("INIT: Language file loaded successfully");
+        
+        Logging::info("INIT: Running startup checks...");
         startupChecks();
+        Logging::info("INIT: Startup checks completed");
 
+        Logging::info("INIT: Loading G1 graphics (CRITICAL - likely 64-bit crash point)...");
         Gfx::loadG1();
+        Logging::info("INIT: G1 graphics loaded successfully");
+        
+        Logging::info("INIT: Initializing graphics system...");
         Gfx::initialise();
+        Logging::info("INIT: Graphics system initialized");
 
+        Logging::info("INIT: Initializing UI system...");
         Ui::initialise();
+        Logging::info("INIT: UI system initialized");
+        
+        Logging::info("INIT: Initializing cursors...");
         Ui::initialiseCursors();
+        Logging::info("INIT: Cursors initialized");
+        
+        Logging::info("INIT: Initializing viewports...");
         initialiseViewports();
+        Logging::info("INIT: Viewports initialized");
+        
+        Logging::info("INIT: Initializing GUI...");
         Gui::init();
+        Logging::info("INIT: GUI initialized");
 
+        Logging::info("INIT: Resetting message manager...");
         MessageManager::reset();
+        Logging::info("INIT: Message manager reset");
+        
+        Logging::info("INIT: Resetting scenario...");
         Scenario::reset();
+        Logging::info("INIT: Scenario reset");
 
+        Logging::info("INIT: Loading object index...");
         ObjectManager::loadIndex();
+        Logging::info("INIT: Object index loaded");
+        
+        Logging::info("INIT: Loading scenario index...");
         ScenarioManager::loadIndex();
+        Logging::info("INIT: Scenario index loaded");
 
+        Logging::info("INIT: Checking command line options...");
         const auto& cmdLineOptions = getCommandLineOptions();
         if (cmdLineOptions.action == CommandLineAction::intro)
         {
+            Logging::info("INIT: Setting intro state to begin");
             Intro::state(Intro::State::begin);
         }
         else
         {
+            Logging::info("INIT: Setting intro state to end");
             Intro::state(Intro::State::end);
         }
 
+        Logging::info("INIT: Starting title sequence...");
         Title::start();
+        Logging::info("INIT: Game initialization completed successfully!");
     }
 
     static void loadFile(const fs::path& path)
@@ -734,19 +785,43 @@ namespace OpenLoco
     // 0x00406386
     static void run()
     {
+        Logging::info("MAIN LOOP: Starting main game loop...");
+        
 #ifdef _WIN32
+        Logging::info("MAIN LOOP: Initializing COM (Windows)...");
         CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+        Logging::info("MAIN LOOP: COM initialized successfully");
 #endif
+        
+        Logging::info("MAIN LOOP: Calling initialise() function (CRITICAL - likely crash point)...");
         initialise();
+        Logging::info("MAIN LOOP: initialise() completed successfully");
 
+        Logging::info("MAIN LOOP: Starting message processing loop...");
+        int loopCount = 0;
         while (Input::processMessages())
         {
+            loopCount++;
+            if (loopCount % 100 == 1) // Log every 100th iteration to avoid spam
+            {
+                Logging::info("MAIN LOOP: Processing loop iteration {}", loopCount);
+            }
+            
             update();
+            
+            if (loopCount % 100 == 1)
+            {
+                Logging::info("MAIN LOOP: Update completed for iteration {}", loopCount);
+            }
         }
+        Logging::info("MAIN LOOP: Message processing loop ended after {} iterations", loopCount);
 
 #ifdef _WIN32
+        Logging::info("MAIN LOOP: Uninitializing COM (Windows)...");
         CoUninitialize();
+        Logging::info("MAIN LOOP: COM uninitialized successfully");
 #endif
+        Logging::info("MAIN LOOP: Main game loop completed successfully");
     }
 
     void simulateGame(const fs::path& savePath, int32_t ticks)
