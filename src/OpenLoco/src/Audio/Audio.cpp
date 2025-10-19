@@ -176,37 +176,71 @@ namespace OpenLoco::Audio
     // 0x00404E53
     void initialiseDSound()
     {
+        Logging::info("AUDIO INIT: Starting DirectSound initialization...");
+        
+        Logging::info("AUDIO INIT: Checking if devices list is empty...");
         if (_devices.empty())
         {
+            Logging::info("AUDIO INIT: Devices list empty, getting audio devices...");
             _devices = getDevices();
+            Logging::info("AUDIO INIT: Found {} audio devices", _devices.size());
+        }
+        else
+        {
+            Logging::info("AUDIO INIT: Using existing devices list with {} devices", _devices.size());
         }
         std::string deviceName{};
+        Logging::info("AUDIO INIT: Getting audio configuration...");
         const auto& cfg = Config::get();
+        Logging::info("AUDIO INIT: Checking configured audio device...");
         if (!cfg.audio.device.empty())
         {
+            Logging::info("AUDIO INIT: Configured device: '{}'", cfg.audio.device);
             if (std::find(std::begin(_devices), std::end(_devices), cfg.audio.device) != std::end(_devices))
             {
                 deviceName = cfg.audio.device;
+                Logging::info("AUDIO INIT: Using configured device: '{}'", deviceName);
+            }
+            else
+            {
+                Logging::warn("AUDIO INIT: Configured device '{}' not found, using default", cfg.audio.device);
             }
         }
+        else
+        {
+            Logging::info("AUDIO INIT: No device configured, using default");
+        }
 
+        Logging::info("AUDIO INIT: Opening audio device: '{}'", deviceName.empty() ? "default" : deviceName);
         _device.open(deviceName);
+        Logging::info("AUDIO INIT: Audio device opened successfully");
+        Logging::info("AUDIO INIT: Setting up audio channels...");
         _channels.clear();
         for (auto i = 0; i < 4; ++i)
         {
+            Logging::info("AUDIO INIT: Allocating audio channel {}/4", i + 1);
             const auto sourceId = _sourceManager.allocate();
             _channels.push_back(Channel(sourceId));
         }
+        Logging::info("AUDIO INIT: Created {} audio channels", _channels.size());
+        Logging::info("AUDIO INIT: Setting up vehicle audio channels...");
         _vehicleChannels.clear();
         for (auto i = 0; i < 10; ++i)
         {
+            Logging::info("AUDIO INIT: Allocating vehicle channel {}/10", i + 1);
             const auto sourceId = _sourceManager.allocate();
             _vehicleChannels.push_back(Channel(sourceId));
         }
+        Logging::info("AUDIO INIT: Created {} vehicle channels", _vehicleChannels.size());
 
+        Logging::info("AUDIO INIT: Loading sound samples from CSS file...");
         auto css1path = Environment::getPath(Environment::PathId::css1);
+        Logging::info("AUDIO INIT: CSS1 path: '{}'", css1path);
         _samples = loadSoundsFromCSS(css1path);
+        Logging::info("AUDIO INIT: Loaded {} sound samples", _samples.size());
+        
         _audioInitialised = 1;
+        Logging::info("AUDIO INIT: DirectSound initialization completed successfully!");
     }
 
     // 0x00404E58
