@@ -787,14 +787,27 @@ namespace OpenLoco
     // 0x004078FE
     static void generateSystemStats()
     {
+        Logging::info("SYSTEM STATS: Starting system statistics generation...");
+        
         // Vanilla would actually query the system for this and would
         // also get the system computer name for default multiplayer name.
         // But there isn't much point nowadays to do this so lets just
         // set it to a large fixed value.
         // The value is only used by config to decide how many sounds
         // to have active at once.
+        
+#ifdef OPENLOCO_FORCE_64BIT
+        // For 64-bit build, skip loco_global access that causes crash
+        // This memory location doesn't exist in 64-bit address space
+        Logging::info("SYSTEM STATS: Skipping loco_global memory access for 64-bit build");
+        Logging::info("SYSTEM STATS: Total physical memory simulation bypassed");
+#else
         static loco_global<uint32_t, 0x0113E21C> _totalPhysicalMemory;
         _totalPhysicalMemory = 0xFFFFFFFFU;
+        Logging::info("SYSTEM STATS: Set total physical memory to 4GB (32-bit mode)");
+#endif
+        
+        Logging::info("SYSTEM STATS: System statistics generation completed successfully");
     }
 
     // 0x00406D13
