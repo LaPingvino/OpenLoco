@@ -71,7 +71,10 @@ if (NOT CMAKE_CXX_STANDARD)
     set(CMAKE_CXX_STANDARD 20)
 endif()
 
-if (APPLE)
+# Add option to force 64-bit builds (experimental)
+option(OPENLOCO_FORCE_64BIT "Force 64-bit builds (experimental)" OFF)
+
+if (APPLE AND NOT OPENLOCO_FORCE_64BIT)
     # Detection of this variable seems to fail with CMake.
     # Since we only support 32-bit builds at the moment, fix it this way.
     # TODO: find out a proper fix for this.
@@ -119,8 +122,13 @@ endif()
 
 # Handle creating the rct2 text and data files on OS X and Linux
 if (UNIX)
-    set(OBJ_FORMAT "elf32-i386")
-    set(LINKER_SCRIPT "ld_script_i386.xc")
+    if (OPENLOCO_FORCE_64BIT)
+        set(OBJ_FORMAT "elf64-x86-64")
+        set(LINKER_SCRIPT "ld_script_x86_64.xc")
+    else()
+        set(OBJ_FORMAT "elf32-i386")
+        set(LINKER_SCRIPT "ld_script_i386.xc")
+    endif()
 
     set(OLOCO_EXE ${CMAKE_CURRENT_SOURCE_DIR}/loco.exe)
     set(OLOCO_TEXT ${CMAKE_BINARY_DIR}/openloco_text)
@@ -144,15 +152,21 @@ if (UNIX)
         # For Linux we have to use objcopy to wrap regular binaries into a linkable
         # format. We use specific section names which are then referenced in a
         # bespoke linker script so they can be placed at predefined VMAs.
+        if (OPENLOCO_FORCE_64BIT)
+            set(OBJCOPY_ARCH "i386:x86-64")
+        else()
+            set(OBJCOPY_ARCH "i386")
+        endif()
+        
         add_custom_command(
             OUTPUT openloco_text_section.o
-            COMMAND objcopy --input binary --output ${OBJ_FORMAT} --binary-architecture i386 \"${OLOCO_TEXT}\" openloco_text_section.o --rename-section .data=.loco_text,contents,alloc,load,readonly,code
+            COMMAND objcopy --input binary --output ${OBJ_FORMAT} --binary-architecture ${OBJCOPY_ARCH} \"${OLOCO_TEXT}\" openloco_text_section.o --rename-section .data=.loco_text,contents,alloc,load,readonly,code
             DEPENDS segfiles
             WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
         )
         add_custom_command(
             OUTPUT openloco_data_section.o
-            COMMAND objcopy --input binary --output ${OBJ_FORMAT} --binary-architecture i386 \"${OLOCO_DATA}\" openloco_data_section.o --rename-section .data=.loco_data,contents,alloc,load,readonly,data
+            COMMAND objcopy --input binary --output ${OBJ_FORMAT} --binary-architecture ${OBJCOPY_ARCH} \"${OLOCO_DATA}\" openloco_data_section.o --rename-section .data=.loco_data,contents,alloc,load,readonly,data
             DEPENDS segfiles
             WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
         )
