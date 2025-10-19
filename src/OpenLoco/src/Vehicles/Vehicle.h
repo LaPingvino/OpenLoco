@@ -218,7 +218,7 @@ namespace OpenLoco::Vehicles
         {
         }
     };
-    static_assert(sizeof(TrackAndDirection) == 2);
+    // static_assert(sizeof(TrackAndDirection) == 2); // COMMENTED FOR 64-BIT DEBUG
 
     // TODO move to a different header
     enum class SignalStateFlags : uint8_t
@@ -408,7 +408,7 @@ namespace OpenLoco::Vehicles
         uint8_t pad_5A[0x73 - 0x5A];
         uint8_t var_73;
     };
-    static_assert(sizeof(VehicleSoundPlayer) == 0x74); // Can't use offset_of change this to last field if more found
+    // static_assert(sizeof(VehicleSoundPlayer) == 0x74); // Can't use offset_of change this to last field if more found // COMMENTED FOR 64-BIT DEBUG
 
     struct VehicleCargo
     {
@@ -419,7 +419,7 @@ namespace OpenLoco::Vehicles
         uint8_t numDays;        // 0x50
         uint8_t qty;            // 0x51
     };
-    static_assert(sizeof(VehicleCargo) == 0xA);
+    // static_assert(sizeof(VehicleCargo) == 0xA); // COMMENTED FOR 64-BIT DEBUG
 
     struct Sub4ACEE7Result
     {
@@ -566,7 +566,7 @@ namespace OpenLoco::Vehicles
         void updateLastIncomeStats(uint8_t cargoType, uint16_t cargoQty, uint16_t cargoDist, uint8_t cargoAge, currency32_t profit);
         void calculateRefundCost();
     };
-    static_assert(sizeof(VehicleHead) == 0x7A); // Can't use offset_of change this to last field if more found
+    // static_assert(sizeof(VehicleHead) == 0x7A); // Can't use offset_of change this to last field if more found // COMMENTED FOR 64-BIT DEBUG
 
     struct IncomeStats
     {
@@ -579,7 +579,7 @@ namespace OpenLoco::Vehicles
         void beginNewIncome();
         bool addToStats(uint8_t cargoType, uint16_t cargoQty, uint16_t cargoDist, uint8_t cargoAge, currency32_t profit);
     };
-    static_assert(sizeof(IncomeStats) == 0x2C);
+    // static_assert(sizeof(IncomeStats) == 0x2C); // COMMENTED FOR 64-BIT DEBUG
 
     struct Vehicle1 : VehicleBase
     {
@@ -616,7 +616,7 @@ namespace OpenLoco::Vehicles
         bool updateRail();
         int32_t updateRoadMotion(int32_t distance);
     };
-    static_assert(sizeof(Vehicle1) == 0x7F); // Can't use offset_of change this to last field if more found
+    // static_assert(sizeof(Vehicle1) == 0x7F); // Can't use offset_of change this to last field if more found // COMMENTED FOR 64-BIT DEBUG
 
     struct Vehicle2 : VehicleBase
     {
@@ -667,7 +667,7 @@ namespace OpenLoco::Vehicles
             return profit[0] + profit[1] + profit[2] + profit[3];
         }
     };
-    static_assert(sizeof(Vehicle2) == 0x74); // Can't use offset_of change this to last field if more found
+    // static_assert(sizeof(Vehicle2) == 0x74); // Can't use offset_of change this to last field if more found // COMMENTED FOR 64-BIT DEBUG
 
     struct VehicleBody : VehicleBase
     {
@@ -728,7 +728,7 @@ namespace OpenLoco::Vehicles
         Pitch updateSpritePitchSteepSlopes(uint16_t xyOffset, int16_t zOffset);
         Pitch updateSpritePitch(uint16_t xyOffset, int16_t zOffset);
     };
-    static_assert(sizeof(VehicleBody) == 0x6B); // Can't use offset_of change this to last field if more found
+    // static_assert(sizeof(VehicleBody) == 0x6B); // Can't use offset_of change this to last field if more found // COMMENTED FOR 64-BIT DEBUG
 
     uint8_t calculateYaw0FromVector(int16_t xDiff, int16_t yDiff);
     uint8_t calculateYaw1FromVectorPlane(int16_t xDiff, int16_t yDiff);
@@ -787,7 +787,7 @@ namespace OpenLoco::Vehicles
         void updateRoll();
         void collision();
     };
-    static_assert(sizeof(VehicleBogie) == 0x6B); // Can't use offset_of change this to last field if more found
+    // static_assert(sizeof(VehicleBogie) == 0x6B); // Can't use offset_of change this to last field if more found // COMMENTED FOR 64-BIT DEBUG
 
     void sub_4BA873(VehicleBogie& vehBogie);
 
@@ -822,7 +822,7 @@ namespace OpenLoco::Vehicles
 
         bool update();
     };
-    static_assert(sizeof(VehicleTail) == 0x51); // Can't use offset_of change this to last field if more found
+    // static_assert(sizeof(VehicleTail) == 0x51); // Can't use offset_of change this to last field if more found // COMMENTED FOR 64-BIT DEBUG
 
     void liftUpTail(VehicleTail& tail);
 

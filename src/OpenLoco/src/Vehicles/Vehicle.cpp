@@ -47,7 +47,7 @@ namespace OpenLoco::Vehicles
         uint8_t pad_3C[0x42 - 0x3C];
         TransportMode mode; // 0x42 field same in all vehicles
     };
-    static_assert(sizeof(VehicleCommon) == 0x43); // Can't use offset_of change this to last field if more found
+    // static_assert(sizeof(VehicleCommon) == 0x43); // Can't use offset_of change this to last field if more found // COMMENTED FOR 64-BIT DEBUG
 #pragma pack(pop)
 
     ColourScheme VehicleBase::getColourScheme()

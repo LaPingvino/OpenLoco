@@ -300,3 +300,4 @@ CMakeUserPresets.json
 *.btm.cs
 *.odx.cs
 *.xsd.cs
+build64/

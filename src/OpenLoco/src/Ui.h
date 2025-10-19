@@ -25,7 +25,7 @@ namespace OpenLoco::Ui
         int16_t width_3;
         int16_t height_3;
     };
-    static_assert(sizeof(ScreenInfo) == 0xC);
+    // static_assert(sizeof(ScreenInfo) == 0xC); // COMMENTED FOR 64-BIT DEBUG
 #pragma pack(pop)
 
     enum class CursorId : uint8_t

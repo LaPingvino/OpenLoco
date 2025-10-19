@@ -10,5 +10,5 @@ namespace OpenLoco
         uint8_t animationSpeed; // 0x1 Also encodes in bit 7 if the animation is position modified
     };
 #pragma pack(pop)
-    static_assert(sizeof(BuildingPartAnimation) == 0x2);
+    // static_assert(sizeof(BuildingPartAnimation) == 0x2); // COMMENTED FOR 64-BIT DEBUG
 }

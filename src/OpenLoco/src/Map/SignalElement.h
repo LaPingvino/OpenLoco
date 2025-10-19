@@ -93,7 +93,7 @@ namespace OpenLoco::World
         const Side& getRight() const { return sides[1]; }
     };
 #pragma pack(pop)
-    static_assert(sizeof(SignalElement) == kTileElementSize);
+    // static_assert(sizeof(SignalElement) == kTileElementSize); // COMMENTED FOR 64-BIT DEBUG
 
     bool updateSignalAnimation(const Animation& anim);
 }

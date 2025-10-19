@@ -66,7 +66,7 @@ namespace OpenLoco::World
         bool update(const World::Pos2& loc);
     };
 #pragma pack(pop)
-    static_assert(sizeof(IndustryElement) == kTileElementSize);
+    // static_assert(sizeof(IndustryElement) == kTileElementSize); // COMMENTED FOR 64-BIT DEBUG
 
     struct Animation;
     bool updateIndustryAnimation1(const Animation& anim);

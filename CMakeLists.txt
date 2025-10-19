@@ -74,6 +74,10 @@ endif()
 # Add option to force 64-bit builds (experimental)
 option(OPENLOCO_FORCE_64BIT "Force 64-bit builds (experimental)" OFF)
 
+if (OPENLOCO_FORCE_64BIT)
+    add_compile_definitions(OPENLOCO_FORCE_64BIT)
+endif()
+
 if (APPLE AND NOT OPENLOCO_FORCE_64BIT)
     # Detection of this variable seems to fail with CMake.
     # Since we only support 32-bit builds at the moment, fix it this way.

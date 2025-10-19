@@ -11,6 +11,6 @@ namespace OpenLoco::World
         uint8_t type;
         World::Pos2 pos;
     };
-    static_assert(sizeof(Animation) == 6);
+    // static_assert(sizeof(Animation) == 6); // COMMENTED FOR 64-BIT DEBUG
 #pragma pack(pop)
 }

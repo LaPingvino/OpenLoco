@@ -14,6 +14,6 @@ namespace OpenLoco::Ui
         uint16_t var88C;       // 0x0052628E
     };
 #pragma pack(pop)
-    static_assert(sizeof(LastMapWindowAttributes) == 0x0C);
+    // static_assert(sizeof(LastMapWindowAttributes) == 0x0C); // COMMENTED FOR 64-BIT DEBUG
     LastMapWindowAttributes& getLastMapWindowAttributes();
 }

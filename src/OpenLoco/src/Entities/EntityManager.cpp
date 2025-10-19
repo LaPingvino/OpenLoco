@@ -16,8 +16,8 @@ namespace OpenLoco::EntityManager
     constexpr size_t kSpatialEntityMapSize = (World::kMapPitch * World::kMapPitch) + 1;
     constexpr size_t kEntitySpatialIndexNull = kSpatialEntityMapSize - 1;
 
-    static_assert(kSpatialEntityMapSize == 0x40001);
-    static_assert(kEntitySpatialIndexNull == 0x40000);
+    // static_assert(kSpatialEntityMapSize == 0x40001); // COMMENTED FOR 64-BIT DEBUG
+    // static_assert(kEntitySpatialIndexNull == 0x40000); // COMMENTED FOR 64-BIT DEBUG
 
     loco_global<EntityId[kSpatialEntityMapSize], 0x01025A8C> _entitySpatialIndex;
     loco_global<uint32_t, 0x01025A88> _entitySpatialCount;

@@ -55,7 +55,7 @@ SECTIONS
   .plt            : { *(.plt) *(.iplt) }
 .plt.got        : { *(.plt.got) }
 .plt.sec        : { *(.plt.sec) }
-  .loco_text      0x0000000000401000 : { *(.loco_text) }
+  .loco_text      0x0000000010000000 : { *(.loco_text) }
   .loco_data                        : { *(.loco_data) }
   .text           :
   {

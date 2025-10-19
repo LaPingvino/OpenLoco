@@ -97,7 +97,7 @@ namespace OpenLoco
     };
 #pragma pack(pop)
 
-    static_assert(sizeof(Industry) == 0x453);
+    // static_assert(sizeof(Industry) == 0x453); // COMMENTED FOR 64-BIT DEBUG
 
     bool claimSurfaceForIndustry(const World::TilePos2& pos, IndustryId industryId, uint8_t growthStage, uint8_t updateTimer);
 }

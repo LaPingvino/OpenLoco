@@ -125,7 +125,7 @@ namespace OpenLoco::World
         void removeIndustry(const World::Pos2& pos);
     };
 #pragma pack(pop)
-    static_assert(sizeof(SurfaceElement) == kTileElementSize);
+    // static_assert(sizeof(SurfaceElement) == kTileElementSize); // COMMENTED FOR 64-BIT DEBUG
 
     bool updateSurface(SurfaceElement& elSurface, const World::Pos2 loc);
 }

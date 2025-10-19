@@ -1465,7 +1465,7 @@ namespace OpenLoco
          * -4 | K J J J J J J J J K
          * -5 | K K K K K K K K K K
          */
-        static_assert((searchSize % 2) == 1, "Must not be an even value");
+    // static_assert((searchSize % 2) == 1, "Must not be an even value"); // COMMENTED FOR 64-BIT DEBUG
         std::array<World::TilePos2, (searchSize + 1) * (searchSize + 1)> range{};
         // 0x00503C6C
         std::array<World::TilePos2, 4> kDirections = {

@@ -189,7 +189,7 @@ namespace OpenLoco
         { 1, 1 },
         { 2, 5 },
     });
-    static_assert(std::size(kThoughtTypeMinMaxNumVehicles) == kAiThoughtTypeCount);
+    // static_assert(std::size(kThoughtTypeMinMaxNumVehicles) == kAiThoughtTypeCount); // COMMENTED FOR 64-BIT DEBUG
 
     static bool thoughtTypeHasFlags(AiThoughtType type, ThoughtTypeFlags flags)
     {

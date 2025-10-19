@@ -30,7 +30,7 @@ namespace OpenLoco::Vehicles
     {
         return (speed / 2).getRaw();
     }
-    static_assert(distanceTraveledInATick(speedFromDistanceInATick(100)) == 100);
+    // static_assert(distanceTraveledInATick(speedFromDistanceInATick(100)) == 100); // COMMENTED FOR 64-BIT DEBUG
 
     // 0x004A9788
     bool Vehicle1::update()

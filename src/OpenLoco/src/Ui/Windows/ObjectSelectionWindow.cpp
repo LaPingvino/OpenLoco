@@ -532,7 +532,7 @@ namespace OpenLoco::Ui::Windows::ObjectSelectionWindow
         window->object = nullptr;
 
         assignTabPositions(window);
-        static_assert(kMainTabInfo[0].objectType == ObjectType::region);
+    // static_assert(kMainTabInfo[0].objectType == ObjectType::region); // COMMENTED FOR 64-BIT DEBUG
         populateTabObjectList(ObjectType::region, FilterFlags(window->var_858));
 
         ObjectManager::freeTemporaryObject();

@@ -255,6 +255,7 @@ set(OLOCO_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Objects/WallObject.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Objects/WaterObject.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/OpenLoco.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/StructureLayoutLogger.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Paint/Paint.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Paint/PaintAirport.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Paint/PaintBridge.cpp"

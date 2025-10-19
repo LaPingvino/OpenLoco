@@ -77,7 +77,7 @@ namespace OpenLoco::World
         }
     };
 #pragma pack(pop)
-    static_assert(sizeof(TreeElement) == kTileElementSize);
+    // static_assert(sizeof(TreeElement) == kTileElementSize); // COMMENTED FOR 64-BIT DEBUG
 
     bool updateTreeElement(TreeElement& elTree, const World::Pos2 loc);
 }

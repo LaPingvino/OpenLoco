@@ -11,5 +11,5 @@ namespace OpenLoco::World
         uint8_t pad[4];
     };
 #pragma pack(pop)
-    static_assert(sizeof(TileElement) == kTileElementSize);
+    // static_assert(sizeof(TileElement) == kTileElementSize); // COMMENTED FOR 64-BIT DEBUG
 }

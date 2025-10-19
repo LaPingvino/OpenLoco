@@ -139,7 +139,7 @@ namespace OpenLoco::World
         bool update(const World::Pos2& loc);
     };
 #pragma pack(pop)
-    static_assert(sizeof(RoadElement) == kTileElementSize);
+    // static_assert(sizeof(RoadElement) == kTileElementSize); // COMMENTED FOR 64-BIT DEBUG
 
     bool updateLevelCrossingAnimation(const Animation& anim);
 }

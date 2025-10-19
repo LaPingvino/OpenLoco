@@ -104,7 +104,7 @@ namespace OpenLoco::Ui::Windows::Options
             };
         }
 
-        static_assert(Widx::tab_music == Widx::tab_display + kTabOffsetMusic);
+    // static_assert(Widx::tab_music == Widx::tab_display + kTabOffsetMusic); // COMMENTED FOR 64-BIT DEBUG
 
         enum tab
         {

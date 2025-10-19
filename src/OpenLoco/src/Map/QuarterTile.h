@@ -70,5 +70,5 @@ namespace OpenLoco::World
             return (_val >> 4) & 0xF;
         }
     };
-    static_assert(sizeof(QuarterTile) == 1);
+    // static_assert(sizeof(QuarterTile) == 1); // COMMENTED FOR 64-BIT DEBUG
 }

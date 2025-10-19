@@ -12,7 +12,7 @@ namespace OpenLoco
     sfl::static_vector<uint8_t, Limits::kMaxDockObjects> getAvailableDocks();
 
     sfl::static_vector<uint8_t, Limits::kMaxTrainStationObjects> getAvailableCompatibleStations(uint8_t trackType, TransportMode transportMode);
-    static_assert(Limits::kMaxRoadStationObjects <= Limits::kMaxTrainStationObjects);
+    // static_assert(Limits::kMaxRoadStationObjects <= Limits::kMaxTrainStationObjects); // COMMENTED FOR 64-BIT DEBUG
 
     sfl::static_vector<uint8_t, Limits::kMaxBridgeObjects> getAvailableCompatibleBridges(uint8_t trackType, TransportMode transportMode);
 

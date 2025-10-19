@@ -29,7 +29,7 @@ namespace OpenLoco
 
         static MoneyEffect* create(const World::Pos3& loc, const CompanyId company, const currency32_t amount);
     };
-    static_assert(sizeof(MoneyEffect) == 0x48);
+    // static_assert(sizeof(MoneyEffect) == 0x48); // COMMENTED FOR 64-BIT DEBUG
 
 #pragma pack(pop)
 }

@@ -76,6 +76,13 @@
 #include "World/IndustryManager.h"
 #include "World/StationManager.h"
 #include "World/TownManager.h"
+#include "World/Company.h"
+#include "World/Industry.h"
+#include "World/Station.h"
+#include "World/Town.h"
+#ifdef OPENLOCO_FORCE_64BIT
+#include "StructureLayoutLogger.h"
+#endif
 #include <OpenLoco/Core/Numerics.hpp>
 #include <OpenLoco/Interop/Interop.hpp>
 #include <OpenLoco/Platform/Crash.h>
@@ -798,6 +805,29 @@ namespace OpenLoco
 
         // Always print the product name and version first.
         Logging::info("{}", OpenLoco::getVersionInfo());
+
+#ifdef OPENLOCO_FORCE_64BIT
+        // Log structure layouts for 64-bit debugging
+        Debug::StructureLayoutLogger::initialize();
+        LOG_SEPARATOR("OpenLoco 64-bit Structure Layout Analysis");
+        LOG_NOTE("This log helps identify memory layout differences between 32-bit and 64-bit builds");
+        
+        LOG_SEPARATOR("Core Game Structures");
+        LOG_STRUCT(Company);
+        LOG_STRUCT(Industry);
+        LOG_STRUCT(Station);
+        LOG_STRUCT(Town);
+        
+        LOG_SEPARATOR("Company Structure Details");
+        // Note: These will fail to compile if the members don't exist, but that's okay for debugging
+        LOG_MEMBER(Company, companyValueHistory);
+        LOG_MEMBER(Company, vehicleProfit);
+        LOG_MEMBER(Company, challengeProgress);
+        LOG_MEMBER(Company, activeEmotions);
+        
+        Debug::StructureLayoutLogger::close();
+        Logging::info("64-bit structure layout analysis saved to structure_layout_64bit.log");
+#endif
 
         Environment::setLocale();
 
