@@ -35,7 +35,7 @@ using namespace OpenLoco::Interop;
 
 namespace OpenLoco::Ui::Windows::ToolbarTop::Editor
 {
-    static loco_global<uint8_t, 0x009C870C> _lastTownOption;
+    static uint8_t _lastTownOption = 0; // Was loco_global at 0x009C870C
 
     namespace Widx
     {

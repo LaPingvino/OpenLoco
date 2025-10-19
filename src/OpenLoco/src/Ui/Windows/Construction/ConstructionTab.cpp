@@ -45,13 +45,13 @@ using namespace OpenLoco::Literals;
 
 namespace OpenLoco::Ui::Windows::Construction::Construction
 {
-    static loco_global<uint8_t, 0x00508F09> _suppressErrorSound;
+    static uint8_t _suppressErrorSound = 0; // Was loco_global at 0x00508F09
 
-    static loco_global<World::Pos3, 0x00F24942> _constructionArrowPos;
-    static loco_global<uint8_t, 0x00F24948> _constructionArrowDirection;
+    static World::Pos3 _constructionArrowPos = {}; // Was loco_global at 0x00F24942
+    static uint8_t _constructionArrowDirection = 0; // Was loco_global at 0x00F24948
 
-    static loco_global<uint8_t, 0x0112C2E9> _alternateTrackObjectId; // set from GameCommands::createRoad
-    static loco_global<uint8_t[18], 0x0050A006> _availableObjects;   // top toolbar
+    static uint8_t _alternateTrackObjectId = 0; // Was loco_global at 0x0112C2E9
+    static std::array<uint8_t, 18> _availableObjects = {}; // Was loco_global at 0x0050A006
 
     // TODO: move to ConstructionState when no longer a loco_global?
     static bool _isDragging = false;
@@ -2023,7 +2023,7 @@ namespace OpenLoco::Ui::Windows::Construction::Construction
     // 0x00478361
     static std::optional<int16_t> getExistingRoadAtLoc(int16_t x, int16_t y)
     {
-        static loco_global<Viewport*, 0x01135F52> _1135F52;
+        static Viewport* _1135F52 = nullptr; // Was loco_global at 0x01135F52
 
         auto [interaction, viewport] = ViewportInteraction::getMapCoordinatesFromPos(x, y, ~(ViewportInteraction::InteractionItemFlags::roadAndTram));
         _1135F52 = viewport;
@@ -2050,7 +2050,7 @@ namespace OpenLoco::Ui::Windows::Construction::Construction
     // 0x004A4011
     static std::optional<std::pair<int16_t, int16_t>> getExistingTrackAtLoc(int16_t x, int16_t y)
     {
-        static loco_global<Viewport*, 0x01135F52> _1135F52;
+        static Viewport* _1135F52 = nullptr; // Was loco_global at 0x01135F52
 
         auto [interaction, viewport] = ViewportInteraction::getMapCoordinatesFromPos(x, y, ~(ViewportInteraction::InteractionItemFlags::track));
         _1135F52 = viewport;
@@ -2306,7 +2306,7 @@ namespace OpenLoco::Ui::Windows::Construction::Construction
             _cState->ghostRemovalTrackId = args.trackId;
             _ghostRemovalTrackObjectId = args.trackObjectId;
             _cState->ghostRemovalTrackRotation = args.rotation;
-            _ghostVisibilityFlags = GhostVisibilityFlags::track | *_ghostVisibilityFlags;
+            _ghostVisibilityFlags = GhostVisibilityFlags::track | _ghostVisibilityFlags;
             const auto newViewState = (_cState->byte_1136072 & (1 << 1)) ? WindowManager::ViewportVisibility::undergroundView : WindowManager::ViewportVisibility::overgroundView;
             WindowManager::viewportSetVisibility(newViewState);
             if (_cState->lastSelectedTrackGradient != 0)
@@ -2359,7 +2359,7 @@ namespace OpenLoco::Ui::Windows::Construction::Construction
             _cState->ghostRemovalTrackId = args.roadId;
             _ghostRemovalTrackObjectId = args.roadObjectId | (1 << 7);
             _cState->ghostRemovalTrackRotation = args.rotation;
-            _ghostVisibilityFlags = GhostVisibilityFlags::track | *_ghostVisibilityFlags;
+            _ghostVisibilityFlags = GhostVisibilityFlags::track | _ghostVisibilityFlags;
             const auto newViewState = (_cState->byte_1136072 & (1 << 1)) ? WindowManager::ViewportVisibility::undergroundView : WindowManager::ViewportVisibility::overgroundView;
             WindowManager::viewportSetVisibility(newViewState);
             if (_cState->lastSelectedTrackGradient != 0)

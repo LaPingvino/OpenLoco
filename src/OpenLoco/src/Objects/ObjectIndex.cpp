@@ -47,13 +47,13 @@ namespace OpenLoco::ObjectManager
     // Was previously 0x0050D13C count was in 0x0112A110
     static std::vector<ObjectIndexEntry> _installedObjectList;
 
-    static loco_global<bool, 0x0112A17E> _customObjectsInIndex;
-    static loco_global<bool, 0x0050AEAD> _isFirstTime;
-    static loco_global<bool, 0x0050D161> _isPartialLoaded;
-    static loco_global<int32_t, 0x0050D148> _50D144refCount;
-    static loco_global<SelectedObjectsFlags*, 0x0050D144> _50D144;
-    static loco_global<ObjectSelectionMeta, 0x0112C1C5> _objectSelectionMeta;
-    static loco_global<std::array<uint16_t, kMaxObjectTypes>, 0x0112C181> _numObjectsPerType;
+    static bool _customObjectsInIndex = false; // Was loco_global at 0x0112A17E
+    static bool _isFirstTime = false; // Was loco_global at 0x0050AEAD
+    static bool _isPartialLoaded = false; // Was loco_global at 0x0050D161
+    static int32_t _50D144refCount = 0; // Was loco_global at 0x0050D148
+    static SelectedObjectsFlags* _50D144 = nullptr; // Was loco_global at 0x0050D144
+    static ObjectSelectionMeta _objectSelectionMeta = {}; // Was loco_global at 0x0112C1C5
+    static std::array<uint16_t, kMaxObjectTypes> _numObjectsPerType = {}; // Was loco_global at 0x0112C181
 
     static constexpr uint8_t kCurrentIndexVersion = 5;
     static constexpr uint32_t kMaxStringLength = 1024;
@@ -1122,7 +1122,7 @@ namespace OpenLoco::ObjectManager
 
         for (auto& entry : _installedObjectList)
         {
-            (*_numObjectsPerType)[enumValue(entry._header.getType())]++;
+            (_numObjectsPerType)[enumValue(entry._header.getType())]++;
         }
         if (markInUse)
         {

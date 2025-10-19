@@ -92,7 +92,7 @@ using OpenLoco::GameCommands::VehicleChangeRunningModeArgs;
 
 namespace OpenLoco::Ui::Windows::Vehicle
 {
-    static loco_global<StationId, 0x00F252A4> _hoveredStationId;
+    static StationId _hoveredStationId = 0; // Was loco_global at 0x00F252A4
 
     namespace Common
     {
@@ -315,13 +315,13 @@ namespace OpenLoco::Ui::Windows::Vehicle
         );
     }
 
-    static loco_global<Vehicles::VehicleBogie*, 0x0113614E> _dragCarComponent;
-    static loco_global<EntityId, 0x01136156> _dragVehicleHead;
-    static loco_global<int32_t, 0x01136264> _1136264;
-    static loco_global<uint8_t, 0x01136264> _ghostAirportNode;
-    static loco_global<World::Pos3, 0x0113625E> _ghostVehiclePos;
-    static loco_global<StationId, 0x0113625A> _ghostAirportStationId;
-    static loco_global<uint32_t, 0x0113625A> _ghostLandTrackAndDirection;
+    static Vehicles::VehicleBogie* _dragCarComponent = nullptr; // Was loco_global at 0x0113614E
+    static EntityId _dragVehicleHead = 0; // Was loco_global at 0x01136156
+    static int32_t _1136264 = 0; // Was loco_global at 0x01136264
+    static uint8_t _ghostAirportNode = 0; // Was loco_global at 0x01136264
+    static World::Pos3 _ghostVehiclePos = {}; // Was loco_global at 0x0113625E
+    static StationId _ghostAirportStationId = 0; // Was loco_global at 0x0113625A
+    static uint32_t _ghostLandTrackAndDirection = 0; // Was loco_global at 0x0113625A
 
     namespace Main
     {
@@ -1135,7 +1135,7 @@ namespace OpenLoco::Ui::Windows::Vehicle
 
         static void cloneVehicle(Window& self)
         {
-            static loco_global<EntityId, 0x0113642A> _113642A;
+            static EntityId _113642A = 0; // Was loco_global at 0x0113642A
             auto head = Common::getVehicle(self);
             if (head == nullptr)
             {
@@ -2101,7 +2101,7 @@ namespace OpenLoco::Ui::Windows::Vehicle
                 case widx::remove:
                 {
                     GameCommands::VehicleSellArgs gcArgs{};
-                    gcArgs.car = (*_dragCarComponent)->id;
+                    gcArgs.car = (_dragCarComponent)->id;
 
                     if (Common::confirmComponentChange(gcArgs.car, StringIds::confirm_vehicle_component_sell_cargo_warning_title, StringIds::confirm_vehicle_component_sell_cargo_warning_message, StringIds::confirm_vehicle_component_sell_cargo_warning_confirm))
                     {
@@ -2117,7 +2117,7 @@ namespace OpenLoco::Ui::Windows::Vehicle
                     if (car != nullptr)
                     {
                         GameCommands::VehicleRearrangeArgs args{};
-                        args.source = (*_dragCarComponent)->id;
+                        args.source = (_dragCarComponent)->id;
                         args.dest = car->id;
 
                         GameCommands::setErrorTitle(StringIds::cant_move_vehicle);
@@ -4291,7 +4291,7 @@ namespace OpenLoco::Ui::Windows::Vehicle
                 return;
             }
 
-            if (_1136264 == 0 && *_ghostVehiclePos == placementArgs->pos)
+            if (_1136264 == 0 && _ghostVehiclePos == placementArgs->pos)
             {
                 return;
             }
@@ -4438,7 +4438,7 @@ namespace OpenLoco::Ui::Windows::Vehicle
                 return;
             }
 
-            if (_ghostAirportStationId != StationId::null && *_ghostAirportStationId == placementArgs->stationId && *_ghostAirportNode == placementArgs->airportNode)
+            if (_ghostAirportStationId != StationId::null && *_ghostAirportStationId == placementArgs->stationId && _ghostAirportNode == placementArgs->airportNode)
             {
                 return;
             }
@@ -4674,7 +4674,7 @@ namespace OpenLoco::Ui::Windows::Vehicle
                 return;
             }
 
-            if (_1136264 != -1 && *_ghostLandTrackAndDirection == placementArgs->trackAndDirection && *_ghostVehiclePos == placementArgs->pos && *_1136264 == placementArgs->trackProgress)
+            if (_1136264 != -1 && *_ghostLandTrackAndDirection == placementArgs->trackAndDirection && *_ghostVehiclePos == placementArgs->pos && _1136264 == placementArgs->trackProgress)
             {
                 return;
             }
@@ -4754,7 +4754,7 @@ namespace OpenLoco::Ui::Windows::Vehicle
                 return;
             }
 
-            if (*_ghostAirportStationId == placementArgs->stationId && *_ghostAirportNode == placementArgs->airportNode)
+            if (*_ghostAirportStationId == placementArgs->stationId && _ghostAirportNode == placementArgs->airportNode)
             {
                 if (head.tileX != -1 && head.has38Flags(Vehicles::Flags38::isGhost))
                 {
@@ -4786,7 +4786,7 @@ namespace OpenLoco::Ui::Windows::Vehicle
                 return;
             }
 
-            if (_1136264 == 0 && *_ghostVehiclePos == placementArgs->pos)
+            if (_1136264 == 0 && _ghostVehiclePos == placementArgs->pos)
             {
                 if (head.tileX != -1 && head.has38Flags(Vehicles::Flags38::isGhost))
                 {
@@ -4819,7 +4819,7 @@ namespace OpenLoco::Ui::Windows::Vehicle
                 return;
             }
 
-            if (*_ghostLandTrackAndDirection == placementArgs->trackAndDirection && *_ghostVehiclePos == placementArgs->pos && *_1136264 == placementArgs->trackProgress)
+            if (*_ghostLandTrackAndDirection == placementArgs->trackAndDirection && *_ghostVehiclePos == placementArgs->pos && _1136264 == placementArgs->trackProgress)
             {
                 if (head.tileX != -1 && head.has38Flags(Vehicles::Flags38::isGhost))
                 {

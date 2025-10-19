@@ -182,15 +182,15 @@ namespace OpenLoco::Vehicles
     // using TransformFunction = void (*)(const LocationOfInterestHashMap& hashMap); // TODO C++20 make these concepts
 
     constexpr auto kNullTransformFunction = [](const LocationOfInterestHashMap&) {};
-
-    // static loco_global<FilterFunction, 0x01135F0E> _filterFunction; // Note: No longer passed by global
-    // static loco_global<uint32_t, 0x01135F0A> _hashMapSize;          // Note: No longer passed by global
-    // static loco_global<TransformFunction, 0x01135F12> _transformFunction; // Note: No longer passed by global
-    // static loco_global<LocationOfInterestHashMap*, 0x01135F06> _1135F06; // Note: No longer binary identical so never set this
+    static FilterFunction _filterFunction = {}; // Was loco_global at 0x01135F0E
+    static uint32_t _hashMapSize = 0; // Was loco_global at 0x01135F0A
+    static TransformFunction _transformFunction = {}; // Was loco_global at 0x01135F12
+    static LocationOfInterestHashMap* _1135F06 = nullptr; // Was loco_global at 0x01135F06
+    static uint16_t _routingTransformData = 0; // Was loco_global at 0x001135F88
     // static loco_global<uint16_t, 0x001135F88> _routingTransformData; // Note: No longer passed by global
 
-    static loco_global<TrackNetworkSearchFlags, 0x01135FA6> _findTrackNetworkFlags;
-    static loco_global<uint8_t, 0x01136085> _1136085;
+    static TrackNetworkSearchFlags _findTrackNetworkFlags = 0; // Was loco_global at 0x01135FA6
+    static uint8_t _1136085 = 0; // Was loco_global at 0x01136085
 
     static std::optional<std::pair<World::SignalElement*, World::TrackElement*>> findSignalOnTrack(const World::Pos3& signalLoc, const TrackAndDirection::_TrackAndDirection trackAndDirection, const uint8_t trackType, const uint8_t index)
     {
@@ -633,7 +633,7 @@ namespace OpenLoco::Vehicles
         }
         else
         {
-            _1136085 = *_1136085 | (1 << 0);
+            _1136085 = _1136085 | (1 << 0);
         }
 
         if ((_findTrackNetworkFlags & TrackNetworkSearchFlags::unk1) == TrackNetworkSearchFlags::none)
@@ -816,7 +816,7 @@ namespace OpenLoco::Vehicles
         }
         else
         {
-            _1136085 = *_1136085 | (1 << 0);
+            _1136085 = _1136085 | (1 << 0);
         }
 
         if ((_findTrackNetworkFlags & TrackNetworkSearchFlags::unk1) == TrackNetworkSearchFlags::none)

@@ -60,8 +60,7 @@ namespace OpenLoco
         }
 
         FormatArguments()
-        {
-            loco_global<std::byte[20], 0x0112C826> _commonFormatArgs;
+            std::array<std::byte, 20> _commonFormatArgs = {}; // Was loco_global at 0x0112C826
 
             _bufferStart = _buffer = &*_commonFormatArgs;
             _capacity = std::size(_commonFormatArgs);
@@ -69,18 +68,16 @@ namespace OpenLoco
 
         template<typename... T>
         static FormatArguments common(T&&... args)
-        {
-            loco_global<std::byte[20], 0x0112C826> _commonFormatArgs;
-            FormatArguments formatter{ _commonFormatArgs.get(), std::size(_commonFormatArgs) };
+            std::array<std::byte, 20> _commonFormatArgs = {}; // Was loco_global at 0x0112C826
+            FormatArguments formatter{ _commonFormatArgs, std::size(_commonFormatArgs) };
             (formatter.push(args), ...);
             return formatter;
         }
 
         template<typename... T>
         static FormatArguments mapToolTip(T&&... args)
-        {
-            loco_global<std::byte[40], 0x0050A018> _mapTooltipFormatArguments;
-            FormatArguments formatter{ _mapTooltipFormatArguments.get(), std::size(_mapTooltipFormatArguments) };
+            std::array<std::byte, 40> _mapTooltipFormatArguments = {}; // Was loco_global at 0x0050A018
+            FormatArguments formatter{ _mapTooltipFormatArguments, std::size(_mapTooltipFormatArguments) };
             (formatter.push(args), ...);
             return formatter;
         }

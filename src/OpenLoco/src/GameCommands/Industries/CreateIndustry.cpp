@@ -31,7 +31,7 @@
 
 namespace OpenLoco::GameCommands
 {
-    static loco_global<IndustryId, 0x00E0C3C9> _industryLastPlacedId;
+    static IndustryId _industryLastPlacedId = 0; // Was loco_global at 0x00E0C3C9
 
     // Convert the cargo id's into a bitset
     static uint32_t getProducedCargoBitSet(const IndustryObject& indObj)

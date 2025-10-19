@@ -29,9 +29,9 @@ using OpenLoco::World::TileManager::ElementPositionFlags;
 
 namespace OpenLoco::World::TileClearance
 {
-    static loco_global<uint32_t, 0x00F00138> _F00138;
-    static loco_global<TileElement*, 0x00F0015C> _F0015C;
-    static loco_global<ElementPositionFlags, 0x00F00166> _constructAtElementPositionFlags;
+    static uint32_t _F00138 = 0; // Was loco_global at 0x00F00138
+    static TileElement* _F0015C = nullptr; // Was loco_global at 0x00F0015C
+    static ElementPositionFlags _constructAtElementPositionFlags = 0; // Was loco_global at 0x00F00166
 
     // 0x00462C8E
     void setCollisionErrorMessage(const World::TileElement& el)
@@ -564,6 +564,6 @@ namespace OpenLoco::World::TileClearance
 
     ElementPositionFlags getPositionFlags()
     {
-        return *_constructAtElementPositionFlags;
+        return _constructAtElementPositionFlags;
     }
 }

@@ -60,23 +60,23 @@ using namespace OpenLoco::World;
 
 namespace OpenLoco::Vehicles
 {
-    static loco_global<uint32_t, 0x011360D0> _vehicleUpdate_manhattanDistanceToStation;
-    static loco_global<VehicleHead*, 0x01136118> _vehicleUpdate_head;
-    static loco_global<Vehicle1*, 0x0113611C> _vehicleUpdate_1;
-    static loco_global<Vehicle2*, 0x01136120> _vehicleUpdate_2;
-    static loco_global<VehicleBogie*, 0x01136124> _vehicleUpdate_frontBogie;
-    static loco_global<VehicleBogie*, 0x01136128> _vehicleUpdate_backBogie;
-    static loco_global<int32_t, 0x0113612C> _vehicleUpdate_var_113612C; // Speed
-    static loco_global<int32_t, 0x01136130> _vehicleUpdate_var_1136130; // Speed
-    static loco_global<int16_t, 0x01136168> _vehicleUpdate_targetZ;
-    static loco_global<uint16_t, 0x01136458> _1136458; // Actually just a bool
-    static loco_global<Status, 0x0113646C> _vehicleUpdate_initialStatus;
-    static loco_global<uint8_t, 0x0113646D> _vehicleUpdate_helicopterTargetYaw;
-    static loco_global<AirportMovementNodeFlags, 0x00525BB0> _vehicleUpdate_helicopterAirportMovement;
-    static loco_global<uint32_t, 0x0112C30C> _vehicleUpdate_compatibleRoadStationTypes;
-    static loco_global<int8_t[88], 0x004F865C> _vehicle_arr_4F865C; // This is static move to TrackData
-    static loco_global<SignalStateFlags, 0x005220BC> _vehicleManagerIgnoreSignalFlagsMasks;
-    static loco_global<uint8_t, 0x0113623B> _vehicleMangled_113623B; // This shouldn't be used as it will be mangled but it is
+    static uint32_t _vehicleUpdate_manhattanDistanceToStation = 0; // Was loco_global at 0x011360D0
+    static VehicleHead* _vehicleUpdate_head = nullptr; // Was loco_global at 0x01136118
+    static Vehicle1* _vehicleUpdate_1 = nullptr; // Was loco_global at 0x0113611C
+    static Vehicle2* _vehicleUpdate_2 = nullptr; // Was loco_global at 0x01136120
+    static VehicleBogie* _vehicleUpdate_frontBogie = nullptr; // Was loco_global at 0x01136124
+    static VehicleBogie* _vehicleUpdate_backBogie = nullptr; // Was loco_global at 0x01136128
+    static int32_t _vehicleUpdate_var_113612C = 0; // Was loco_global at 0x0113612C
+    static int32_t _vehicleUpdate_var_1136130 = 0; // Was loco_global at 0x01136130
+    static int16_t _vehicleUpdate_targetZ = 0; // Was loco_global at 0x01136168
+    static uint16_t _1136458 = 0; // Was loco_global at 0x01136458
+    static Status _vehicleUpdate_initialStatus = 0; // Was loco_global at 0x0113646C
+    static uint8_t _vehicleUpdate_helicopterTargetYaw = 0; // Was loco_global at 0x0113646D
+    static AirportMovementNodeFlags _vehicleUpdate_helicopterAirportMovement = 0; // Was loco_global at 0x00525BB0
+    static uint32_t _vehicleUpdate_compatibleRoadStationTypes = 0; // Was loco_global at 0x0112C30C
+    static std::array<int8_t, 88> _vehicle_arr_4F865C = {}; // Was loco_global at 0x004F865C
+    static SignalStateFlags _vehicleManagerIgnoreSignalFlagsMasks = 0; // Was loco_global at 0x005220BC
+    static uint8_t _vehicleMangled_113623B = 0; // Was loco_global at 0x0113623B
 
     static constexpr uint16_t kTrainOneWaySignalTimeout = 1920;
     static constexpr uint16_t kTrainTwoWaySignalTimeout = 640;
@@ -4604,7 +4604,7 @@ namespace OpenLoco::Vehicles
 
                 TrackAndDirection::_TrackAndDirection tad{ 0, 0 };
                 tad._data = connection & World::Track::AdditionalTaDFlags::basicTaDMask;
-                const auto signalState = getSignalState(nextPos, tad, head.trackType, 0U) & *_vehicleManagerIgnoreSignalFlagsMasks;
+                const auto signalState = getSignalState(nextPos, tad, head.trackType, 0U) & _vehicleManagerIgnoreSignalFlagsMasks;
 
                 if ((signalState & SignalStateFlags::blockedNoRoute) != SignalStateFlags::none)
                 {
@@ -4630,7 +4630,7 @@ namespace OpenLoco::Vehicles
                         if (isBlockOccupied(nextPos, tad, head.owner, head.trackType))
                         {
                             setSignalState(nextPos, tad, head.trackType, 8);
-                            return Sub4ACEE7Result{ 3, *_vehicleMangled_113623B, StationId::null };
+                            return Sub4ACEE7Result{ 3, _vehicleMangled_113623B, StationId::null };
                         }
                     }
 
@@ -4639,19 +4639,19 @@ namespace OpenLoco::Vehicles
                         // 0x004AD490
                         if (train.veh1->var_52 != 0)
                         {
-                            _vehicleMangled_113623B = *_vehicleMangled_113623B | (1U << 7);
+                            _vehicleMangled_113623B = _vehicleMangled_113623B | (1U << 7);
                             train.veh1->var_52--;
 
-                            return Sub4ACEE7Result{ 3, *_vehicleMangled_113623B, StationId::null };
+                            return Sub4ACEE7Result{ 3, _vehicleMangled_113623B, StationId::null };
                         }
                         else
                         {
                             if (!(sub_4A2A77(nextPos, tad, head.owner, head.trackType) & ((1U << 0) | (1U << 1))))
                             {
-                                _vehicleMangled_113623B = *_vehicleMangled_113623B | (1U << 7);
+                                _vehicleMangled_113623B = _vehicleMangled_113623B | (1U << 7);
                                 train.veh1->var_52 = 55;
 
-                                return Sub4ACEE7Result{ 3, *_vehicleMangled_113623B, StationId::null };
+                                return Sub4ACEE7Result{ 3, _vehicleMangled_113623B, StationId::null };
                             }
                         }
                     }
@@ -6119,7 +6119,7 @@ namespace OpenLoco::Vehicles
 
         const auto requiredMods = head.var_53;
         const auto queryMods = train.veh1->var_49;
-        const auto allowedStationTypes = *_vehicleUpdate_compatibleRoadStationTypes;
+        const auto allowedStationTypes = _vehicleUpdate_compatibleRoadStationTypes;
         Sub4AC3D3State state{};
         {
             auto [nextPos, nextRotation] = Track::getRoadConnectionEnd(World::Pos3(head.tileX, head.tileY, head.tileBaseZ * World::kSmallZStep), head.trackAndDirection.road.basicRad());

@@ -25,14 +25,14 @@ using namespace OpenLoco::Literals;
 namespace OpenLoco::Vehicles
 {
 
-    static loco_global<VehicleHead*, 0x01136118> _vehicleUpdate_head;
-    static loco_global<Vehicle2*, 0x01136120> _vehicleUpdate_2;
-    static loco_global<VehicleBogie*, 0x01136124> _vehicleUpdate_frontBogie;
-    static loco_global<VehicleBogie*, 0x01136128> _vehicleUpdate_backBogie;
-    static loco_global<int32_t, 0x01136130> _vehicleUpdate_var_1136130; // Speed
-    static loco_global<bool, 0x01136237> _vehicleUpdate_frontBogieHasMoved;
-    static loco_global<bool, 0x01136238> _vehicleUpdate_backBogieHasMoved;
-    static loco_global<int8_t[88], 0x004F865C> _vehicle_arr_4F865C; // cargoType related?
+    static VehicleHead* _vehicleUpdate_head = nullptr; // Was loco_global at 0x01136118
+    static Vehicle2* _vehicleUpdate_2 = nullptr; // Was loco_global at 0x01136120
+    static VehicleBogie* _vehicleUpdate_frontBogie = nullptr; // Was loco_global at 0x01136124
+    static VehicleBogie* _vehicleUpdate_backBogie = nullptr; // Was loco_global at 0x01136128
+    static int32_t _vehicleUpdate_var_1136130 = 0; // Was loco_global at 0x01136130
+    static bool _vehicleUpdate_frontBogieHasMoved = false; // Was loco_global at 0x01136237
+    static bool _vehicleUpdate_backBogieHasMoved = false; // Was loco_global at 0x01136238
+    static std::array<int8_t, 88> _vehicle_arr_4F865C = {}; // Was loco_global at 0x004F865C
 
     // 0x00503E5C
     static constexpr Pitch kVehicleBodyIndexToPitch[] = {

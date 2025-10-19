@@ -48,12 +48,12 @@ using namespace OpenLoco::Diagnostics;
 namespace OpenLoco::World::TileManager
 {
     constexpr auto kNumTiles = kMapPitch * kMapColumns;
-    static loco_global<TileElement*, 0x005230C8> _elements;
-    static loco_global<TileElement* [kNumTiles], 0x00E40134> _tiles;
-    static loco_global<TileElement*, 0x00F00134> _elementsEnd;
-    static loco_global<const TileElement*, 0x00F00158> _F00158;
-    static loco_global<uint32_t, 0x00F00168> _periodicDefragStartTile;
-    static loco_global<bool, 0x0050BF6C> _disablePeriodicDefrag;
+    static TileElement* _elements = nullptr; // Was loco_global at 0x005230C8
+    static std::array<TileElement*, kNumTiles> _tiles = {}; // Was loco_global at 0x00E40134
+    static TileElement* _elementsEnd = nullptr; // Was loco_global at 0x00F00134
+    static const TileElement* _F00158 = nullptr; // Was loco_global at 0x00F00158
+    static uint32_t _periodicDefragStartTile = 0; // Was loco_global at 0x00F00168
+    static bool _disablePeriodicDefrag = false; // Was loco_global at 0x0050BF6C
 
     void disablePeriodicDefrag()
     {
@@ -117,7 +117,7 @@ namespace OpenLoco::World::TileManager
         defaultElement.setBaseZ(4);
         defaultElement.setLastFlag(true);
 
-        auto* element = *_elements;
+        auto* element = _elements;
         for (auto i = 0; i < kMapSize; ++i, ++element)
         {
             *element = *reinterpret_cast<TileElement*>(&defaultElement);
@@ -153,7 +153,7 @@ namespace OpenLoco::World::TileManager
     static void markElementAsFree(TileElement& element)
     {
         element.setBaseZ(255);
-        if (element.next() == *_elementsEnd)
+        if (element.next() == _elementsEnd)
         {
             _elementsEnd--;
         }
@@ -163,11 +163,11 @@ namespace OpenLoco::World::TileManager
     void removeElement(TileElement& element)
     {
         // This is used to indicate if the caller can still use this pointer
-        if (&element == *_F00158)
+        if (&element == _F00158)
         {
             if (element.isLast())
             {
-                *_F00158 = kInvalidTile;
+                _F00158 = kInvalidTile;
             }
         }
 
@@ -193,17 +193,17 @@ namespace OpenLoco::World::TileManager
 
     void setRemoveElementPointerChecker(TileElement& element)
     {
-        *_F00158 = &element;
+        _F00158 = &element;
     }
 
     bool wasRemoveOnLastElement()
     {
-        return *_F00158 == kInvalidTile;
+        return _F00158 == kInvalidTile;
     }
 
     TileElement** getElementIndex()
     {
-        return _tiles.get();
+        return _tiles;
     }
 
     static constexpr size_t getTileIndex(const TilePos2& pos)
@@ -258,7 +258,7 @@ namespace OpenLoco::World::TileManager
         // _elementsEnd points to the free space at the end of the
         // tile elements. You must always check there is space (checkFreeElementsAndReorganise)
         // prior to calling this function!
-        auto* dest = *_elementsEnd;
+        auto* dest = _elementsEnd;
         set(pos, dest);
         return std::make_pair(source, dest);
     }

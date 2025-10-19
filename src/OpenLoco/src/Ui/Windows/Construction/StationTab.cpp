@@ -48,11 +48,11 @@ using namespace OpenLoco::World::TileManager;
 
 namespace OpenLoco::Ui::Windows::Construction::Station
 {
-    static loco_global<uint8_t, 0x00508F09> _suppressErrorSound;
-    static loco_global<World::Pos3, 0x00F24942> _constructionArrowPos;
-    static loco_global<uint8_t, 0x00F24948> _constructionArrowDirection;
-    static loco_global<uint32_t, 0x00112C734> _lastConstructedAdjoiningStationId;           // Can be 0xFFFF'FFFFU for no adjoining station
-    static loco_global<World::Pos2, 0x00112C792> _lastConstructedAdjoiningStationCentrePos; // Can be x = -1 for no adjoining station
+    static uint8_t _suppressErrorSound = 0; // Was loco_global at 0x00508F09
+    static World::Pos3 _constructionArrowPos = {}; // Was loco_global at 0x00F24942
+    static uint8_t _constructionArrowDirection = 0; // Was loco_global at 0x00F24948
+    static uint32_t _lastConstructedAdjoiningStationId = 0; // Was loco_global at 0x00112C734
+    static World::Pos2 _lastConstructedAdjoiningStationCentrePos = -1 for no adjoining station; // Was loco_global at 0x00112C792
 
     // TODO: move to ConstructionState when no longer a loco_global
     static bool _isDragging = false;
@@ -268,8 +268,8 @@ namespace OpenLoco::Ui::Windows::Construction::Station
     static std::optional<GameCommands::RoadStationPlacementArgs> getRoadStationPlacementArgs(const World::Pos2 pos, const World::RoadElement* roadEl);
     static std::optional<GameCommands::TrainStationPlacementArgs> getTrainStationPlacementArgs(const World::Pos2 pos, const World::TrackElement* trackEl);
 
-    static loco_global<World::Pos2, 0x001135F7C> _1135F7C;
-    static loco_global<World::Pos2, 0x001135F80> _1135F90;
+    static World::Pos2 _1135F7C = {}; // Was loco_global at 0x001135F7C
+    static World::Pos2 _1135F90 = {}; // Was loco_global at 0x001135F80
 
     // 0x004A4CF9
     static void onToolUpdateFail()
@@ -299,7 +299,7 @@ namespace OpenLoco::Ui::Windows::Construction::Station
         _constructionArrowDirection = args->rotation;
         _constructionArrowPos = args->pos;
 
-        setMapSelectedTilesFromRange(World::getClampedRange(*_1135F7C, *_1135F90));
+        setMapSelectedTilesFromRange(World::getClampedRange(_1135F7C, *_1135F90));
 
         if ((_ghostVisibilityFlags & GhostVisibilityFlags::station) != GhostVisibilityFlags::none)
         {
@@ -330,9 +330,9 @@ namespace OpenLoco::Ui::Windows::Construction::Station
         World::setMapSelectionFlags(World::MapSelectionFlags::catchmentArea);
         _cState->constructingStationId = _lastConstructedAdjoiningStationId;
 
-        auto* station = _lastConstructedAdjoiningStationId != 0xFFFFFFFFU ? StationManager::get(static_cast<StationId>(*_lastConstructedAdjoiningStationId)) : nullptr;
+        auto* station = _lastConstructedAdjoiningStationId != 0xFFFFFFFFU ? StationManager::get(static_cast<StationId>(_lastConstructedAdjoiningStationId)) : nullptr;
         setCatchmentDisplay(station, CatchmentFlags::flag_0);
-        auto pos = *_lastConstructedAdjoiningStationCentrePos;
+        auto pos = _lastConstructedAdjoiningStationCentrePos;
         if (pos.x == -1)
         {
             pos = args->pos;
@@ -362,7 +362,7 @@ namespace OpenLoco::Ui::Windows::Construction::Station
         _constructionArrowDirection = args->rotation;
         _constructionArrowPos = args->pos;
 
-        setMapSelectedTilesFromRange(World::getClampedRange(*_1135F7C, *_1135F90));
+        setMapSelectedTilesFromRange(World::getClampedRange(_1135F7C, *_1135F90));
 
         if ((_ghostVisibilityFlags & GhostVisibilityFlags::station) != GhostVisibilityFlags::none)
         {
@@ -393,9 +393,9 @@ namespace OpenLoco::Ui::Windows::Construction::Station
         World::setMapSelectionFlags(World::MapSelectionFlags::catchmentArea);
         _cState->constructingStationId = _lastConstructedAdjoiningStationId;
 
-        auto* station = _lastConstructedAdjoiningStationId != 0xFFFFFFFFU ? StationManager::get(static_cast<StationId>(*_lastConstructedAdjoiningStationId)) : nullptr;
+        auto* station = _lastConstructedAdjoiningStationId != 0xFFFFFFFFU ? StationManager::get(static_cast<StationId>(_lastConstructedAdjoiningStationId)) : nullptr;
         setCatchmentDisplay(station, CatchmentFlags::flag_0);
-        auto pos = *_lastConstructedAdjoiningStationCentrePos;
+        auto pos = _lastConstructedAdjoiningStationCentrePos;
         if (pos.x == -1)
         {
             pos = args->pos;
@@ -452,9 +452,9 @@ namespace OpenLoco::Ui::Windows::Construction::Station
         World::setMapSelectionFlags(World::MapSelectionFlags::catchmentArea);
         _cState->constructingStationId = _lastConstructedAdjoiningStationId;
 
-        auto* station = _lastConstructedAdjoiningStationId != 0xFFFFFFFFU ? StationManager::get(static_cast<StationId>(*_lastConstructedAdjoiningStationId)) : nullptr;
+        auto* station = _lastConstructedAdjoiningStationId != 0xFFFFFFFFU ? StationManager::get(static_cast<StationId>(_lastConstructedAdjoiningStationId)) : nullptr;
         setCatchmentDisplay(station, CatchmentFlags::flag_0);
-        auto pos = *_lastConstructedAdjoiningStationCentrePos;
+        auto pos = _lastConstructedAdjoiningStationCentrePos;
         if (pos.x == -1)
         {
             pos = args->pos;
@@ -524,9 +524,9 @@ namespace OpenLoco::Ui::Windows::Construction::Station
         World::setMapSelectionFlags(World::MapSelectionFlags::catchmentArea);
         _cState->constructingStationId = _lastConstructedAdjoiningStationId;
 
-        auto* station = _lastConstructedAdjoiningStationId != 0xFFFFFFFFU ? StationManager::get(static_cast<StationId>(*_lastConstructedAdjoiningStationId)) : nullptr;
+        auto* station = _lastConstructedAdjoiningStationId != 0xFFFFFFFFU ? StationManager::get(static_cast<StationId>(_lastConstructedAdjoiningStationId)) : nullptr;
         setCatchmentDisplay(station, CatchmentFlags::flag_0);
-        auto pos = *_lastConstructedAdjoiningStationCentrePos;
+        auto pos = _lastConstructedAdjoiningStationCentrePos;
         if (pos.x == -1)
         {
             pos = args->pos;
@@ -794,7 +794,7 @@ namespace OpenLoco::Ui::Windows::Construction::Station
                 }
                 else
                 {
-                    static loco_global<uint8_t, 0x00113608A> _113608A; // ai rotation??
+                    static uint8_t _113608A = 0; // Was loco_global at 0x00113608A
                     placementArgs.rotation = _113608A;
                 }
             }
@@ -1335,7 +1335,7 @@ namespace OpenLoco::Ui::Windows::Construction::Station
         auto w = WindowManager::find(WindowType::construction);
         if (w != nullptr && w->currentTab == 1)
         {
-            if (((*_ghostVisibilityFlags & GhostVisibilityFlags::station) != GhostVisibilityFlags::none) && StationId(_cState->constructingStationId) == id) // _constructingStationId
+            if (((_ghostVisibilityFlags & GhostVisibilityFlags::station) != GhostVisibilityFlags::none) && StationId(_cState->constructingStationId) == id) // _constructingStationId
             {
                 _cState->constructingStationId = 0xFFFFFFFFU;
                 w->invalidate();

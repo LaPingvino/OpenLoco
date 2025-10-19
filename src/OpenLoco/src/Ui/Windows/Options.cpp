@@ -51,8 +51,8 @@ namespace OpenLoco::Ui::Windows::Options
     static void setPreferredCurrencyNameBuffer();
 
     // Pointer to an array of SelectedObjectsFlags
-    static loco_global<ObjectManager::SelectedObjectsFlags*, 0x011364A0> __11364A0;
-    static loco_global<uint16_t, 0x0112C185> _112C185;
+    static ObjectManager::SelectedObjectsFlags* __11364A0 = nullptr; // Was loco_global at 0x011364A0
+    static uint16_t _112C185 = 0; // Was loco_global at 0x0112C185
 
     // TODO: This shouldn't be required but its due to how the lifetime
     // of the string needs to exist beyond a prepare draw function and
@@ -71,7 +71,7 @@ namespace OpenLoco::Ui::Windows::Options
 
     static std::span<ObjectManager::SelectedObjectsFlags> getLoadedSelectedObjectFlags()
     {
-        return std::span<ObjectManager::SelectedObjectsFlags>(*__11364A0, ObjectManager::getNumInstalledObjects());
+        return std::span<ObjectManager::SelectedObjectsFlags>(__11364A0, ObjectManager::getNumInstalledObjects());
     }
 
     static void populateAvailableCurrencies()
@@ -1681,7 +1681,7 @@ namespace OpenLoco::Ui::Windows::Options
             }
         }
 
-        static loco_global<std::byte*, 0x0050D13C> _installedObjectList;
+        static std::byte* _installedObjectList = nullptr; // Was loco_global at 0x0050D13C
 
         static void languageMouseDown(Window* w)
         {
@@ -2443,7 +2443,7 @@ namespace OpenLoco::Ui::Windows::Options
 
         );
 
-        static loco_global<uint8_t, 0x0112A17E> _customObjectsInIndex;
+        static uint8_t _customObjectsInIndex = 0; // Was loco_global at 0x0112A17E
 
         static void enableCheatsToolbarButtonMouseUp(Window* w);
         static void disableVehicleBreakdownsMouseUp(Window* w);

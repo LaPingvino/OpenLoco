@@ -53,12 +53,12 @@ namespace OpenLoco::S5
     constexpr uint32_t kCurrentVersion = 0x62262;
     constexpr uint32_t kMagicNumber = 0x62300;
 
-    static loco_global<GameState, 0x00525E18> _gameState;
-    static loco_global<Options, 0x009C8714> _activeOptions;
-    static loco_global<Header, 0x009CCA34> _header;
-    static loco_global<char[512], 0x0112CE04> _savePath;
-    static loco_global<uint8_t, 0x0050C197> _loadErrorCode;
-    static loco_global<StringId, 0x0050C198> _loadErrorMessage;
+    static GameState _gameState = {}; // Was loco_global at 0x00525E18
+    static Options _activeOptions = {}; // Was loco_global at 0x009C8714
+    static Header _header = {}; // Was loco_global at 0x009CCA34
+    static std::array<char, 512> _savePath = {}; // Was loco_global at 0x0112CE04
+    static uint8_t _loadErrorCode = 0; // Was loco_global at 0x0050C197
+    static StringId _loadErrorMessage = 0; // Was loco_global at 0x0050C198
 
     // TODO: move this?
     static std::vector<ObjectHeader> _loadErrorObjectsList;
@@ -170,7 +170,7 @@ namespace OpenLoco::S5
     // 0x0046DB4C
     void drawScenarioPreviewImage()
     {
-        auto& options = *_activeOptions;
+        auto& options = _activeOptions;
         const auto kPreviewSize = sizeof(options.preview[0]);
         const auto kMapSkipFactor = kMapRows / kPreviewSize;
 

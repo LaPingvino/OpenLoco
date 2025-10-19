@@ -18,13 +18,13 @@ using namespace OpenLoco::Literals;
 
 namespace OpenLoco::Vehicles
 {
-    static loco_global<VehicleBogie*, 0x01136124> _vehicleUpdate_frontBogie;
-    static loco_global<VehicleBogie*, 0x01136128> _vehicleUpdate_backBogie;
-    static loco_global<bool, 0x01136237> _vehicleUpdate_frontBogieHasMoved; // remainingDistance related?
-    static loco_global<bool, 0x01136238> _vehicleUpdate_backBogieHasMoved;  // remainingDistance related?
-    static loco_global<int32_t, 0x0113612C> _vehicleUpdate_var_113612C;     // Speed
-    static loco_global<int32_t, 0x01136130> _vehicleUpdate_var_1136130;     // Speed
-    static loco_global<EntityId, 0x0113610E> _vehicleUpdate_collisionCarComponent;
+    static VehicleBogie* _vehicleUpdate_frontBogie = nullptr; // Was loco_global at 0x01136124
+    static VehicleBogie* _vehicleUpdate_backBogie = nullptr; // Was loco_global at 0x01136128
+    static bool _vehicleUpdate_frontBogieHasMoved = false; // Was loco_global at 0x01136237
+    static bool _vehicleUpdate_backBogieHasMoved = false; // Was loco_global at 0x01136238
+    static int32_t _vehicleUpdate_var_113612C = 0; // Was loco_global at 0x0113612C
+    static int32_t _vehicleUpdate_var_1136130 = 0; // Was loco_global at 0x01136130
+    static EntityId _vehicleUpdate_collisionCarComponent = 0; // Was loco_global at 0x0113610E
 
     template<typename T>
     void applyDestructionToComponent(T& component)

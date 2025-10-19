@@ -30,11 +30,11 @@ namespace OpenLoco::GameCommands
     using namespace World::TileManager;
     using namespace World::Track;
 
-    static loco_global<uint8_t, 0x0112C2E9> _alternateTrackObjectId; // used by ui
-    static loco_global<ElementPositionFlags, 0x01136072> _byte_1136072;
-    static loco_global<uint8_t, 0x01136073> _byte_1136073;
-    static loco_global<World::MicroZ, 0x01136074> _byte_1136074;
-    static loco_global<uint8_t, 0x01136075> _byte_1136075; // bridgeType of any overlapping track
+    static uint8_t _alternateTrackObjectId = 0; // Was loco_global at 0x0112C2E9
+    static ElementPositionFlags _byte_1136072 = 0; // Was loco_global at 0x01136072
+    static uint8_t _byte_1136073 = 0; // Was loco_global at 0x01136073
+    static World::MicroZ _byte_1136074 = {}; // Was loco_global at 0x01136074
+    static uint8_t _byte_1136075 = 0; // Was loco_global at 0x01136075
 
     // TODO: Identical to createTrack function
     static bool isBridgeRequired(const World::SmallZ baseZ, const World::SurfaceElement& elSurface, const World::TrackData::PreviewTrack& piece, const uint8_t unk)
@@ -725,7 +725,7 @@ namespace OpenLoco::GameCommands
                         setErrorText(StringIds::too_far_above_ground_for_bridge_type);
                         return FAILURE;
                     }
-                    _byte_1136074 = std::max(heightDiff, *_byte_1136074);
+                    _byte_1136074 = std::max(heightDiff, _byte_1136074);
                     if ((bridgeObj->disabledTrackCfg & World::TrackData::getRoadMiscData(args.roadId).flags) != CommonTraitFlags::none)
                     {
                         setErrorText(StringIds::bridge_type_unsuitable_for_this_configuration);
@@ -802,7 +802,7 @@ namespace OpenLoco::GameCommands
 
             // Abridged flags for just above/underground
             const auto newGroundFlags = posFlags & (ElementPositionFlags::aboveGround | ElementPositionFlags::underground);
-            if (_byte_1136072 != ElementPositionFlags::none && (*_byte_1136072 & newGroundFlags) == ElementPositionFlags::none)
+            if (_byte_1136072 != ElementPositionFlags::none && (_byte_1136072 & newGroundFlags) == ElementPositionFlags::none)
             {
                 setErrorText(StringIds::cant_build_partly_above_partly_below_ground);
                 return FAILURE;

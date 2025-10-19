@@ -31,9 +31,9 @@ namespace OpenLoco::Ui::Windows::Construction
     };
     OPENLOCO_ENABLE_ENUM_OPERATORS(GhostVisibilityFlags);
 
-    static loco_global<uint8_t, 0x00522093> _ghostRemovalTrackObjectId;
-    static loco_global<uint8_t, 0x00522095> _byte_522095;
-    static loco_global<GhostVisibilityFlags, 0x00522096> _ghostVisibilityFlags;
+    static uint8_t _ghostRemovalTrackObjectId = 0; // Was loco_global at 0x00522093
+    static uint8_t _byte_522095 = 0; // Was loco_global at 0x00522095
+    static GhostVisibilityFlags _ghostVisibilityFlags = 0; // Was loco_global at 0x00522096
 
 #pragma pack(push, 1)
     struct ConstructionState
@@ -129,7 +129,7 @@ namespace OpenLoco::Ui::Windows::Construction
 #pragma pack(pop)
 
     // static_assert(sizeof(ConstructionState) == 0x01136090 + 8 - 0x01135F3E); // COMMENTED FOR 64-BIT DEBUG
-    static loco_global<ConstructionState, 0x01135F3E> _cState;
+    static ConstructionState _cState = 0; // Was loco_global at 0x01135F3E
 
     namespace Common
     {

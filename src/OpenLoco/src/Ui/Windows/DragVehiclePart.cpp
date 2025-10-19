@@ -26,8 +26,8 @@ namespace OpenLoco::Ui::Windows::DragVehiclePart
     );
 
     // TODO: make vehicles versions of these call into this global, ?make Entity::id instead?
-    static loco_global<Vehicles::VehicleBogie*, 0x0113614E> _dragCarComponent;
-    static loco_global<EntityId, 0x01136156> _dragVehicleHead;
+    static Vehicles::VehicleBogie* _dragCarComponent = nullptr; // Was loco_global at 0x0113614E
+    static EntityId _dragVehicleHead = 0; // Was loco_global at 0x01136156
 
     static const WindowEventList& getEvents();
 
@@ -71,7 +71,7 @@ namespace OpenLoco::Ui::Windows::DragVehiclePart
         self.height = height;
         WindowManager::close(&self);
         _dragCarComponent = nullptr;
-        WindowManager::invalidate(WindowType::vehicle, enumValue(*_dragVehicleHead));
+        WindowManager::invalidate(WindowType::vehicle, enumValue(_dragVehicleHead));
     }
 
     // 0x004B6197

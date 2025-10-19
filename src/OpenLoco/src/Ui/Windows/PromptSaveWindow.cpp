@@ -22,7 +22,7 @@ using namespace OpenLoco::Interop;
 
 namespace OpenLoco::Ui::Windows::PromptSaveWindow
 {
-    static loco_global<LoadOrQuitMode, 0x0050A002> _savePromptType;
+    static LoadOrQuitMode _savePromptType = 0; // Was loco_global at 0x0050A002
 
     enum widx
     {

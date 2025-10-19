@@ -516,7 +516,7 @@ namespace OpenLoco::Ui::Windows::LandscapeGeneration
                 {
                     if (Game::loadHeightmapOpen())
                     {
-                        static loco_global<char[512], 0x0112CE04> _savePath;
+                        static std::array<char, 512> _savePath = {}; // Was loco_global at 0x0112CE04
                         World::MapGenerator::setPngHeightmapPath(fs::u8path(&*_savePath));
                         window.invalidate();
                     }

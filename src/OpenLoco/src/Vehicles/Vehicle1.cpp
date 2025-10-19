@@ -17,8 +17,8 @@ using namespace OpenLoco::Literals;
 
 namespace OpenLoco::Vehicles
 {
-    static loco_global<int32_t, 0x0113612C> _vehicleUpdate_var_113612C; // Speed
-    static loco_global<Speed32, 0x01136134> _vehicleUpdate_var_1136134; // Speed
+    static int32_t _vehicleUpdate_var_113612C = 0; // Was loco_global at 0x0113612C
+    static Speed32 _vehicleUpdate_var_1136134 = {}; // Was loco_global at 0x01136134
 
     // If distance travelled in one tick this is the speed
     constexpr Speed32 speedFromDistanceInATick(int32_t distance)

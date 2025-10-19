@@ -25,7 +25,7 @@ using namespace OpenLoco::Ui;
 
 namespace OpenLoco::Ui
 {
-    static loco_global<int8_t, 0x00508F16> _screenshotCountdown;
+    static int8_t _screenshotCountdown = 0; // Was loco_global at 0x00508F16
 
     static ScreenshotType _screenshotType = ScreenshotType::regular;
 

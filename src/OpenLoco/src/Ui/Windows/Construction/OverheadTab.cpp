@@ -143,7 +143,7 @@ namespace OpenLoco::Ui::Windows::Construction::Overhead
 
     static std::optional<GameCommands::RoadModsPlacementArgs> getRoadModsPlacementArgsFromCursor(const int16_t x, const int16_t y)
     {
-        static loco_global<Viewport*, 0x01135F52> _1135F52;
+        static Viewport* _1135F52 = nullptr; // Was loco_global at 0x01135F52
 
         auto [interaction, viewport] = ViewportInteraction::getMapCoordinatesFromPos(x, y, ~(ViewportInteraction::InteractionItemFlags::roadAndTram));
         _1135F52 = viewport;
@@ -172,7 +172,7 @@ namespace OpenLoco::Ui::Windows::Construction::Overhead
 
     static std::optional<GameCommands::TrackModsPlacementArgs> getTrackModsPlacementArgsFromCursor(const int16_t x, const int16_t y)
     {
-        static loco_global<Viewport*, 0x01135F52> _1135F52;
+        static Viewport* _1135F52 = nullptr; // Was loco_global at 0x01135F52
 
         auto [interaction, viewport] = ViewportInteraction::getMapCoordinatesFromPos(x, y, ~(ViewportInteraction::InteractionItemFlags::track));
         _1135F52 = viewport;

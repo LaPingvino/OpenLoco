@@ -41,10 +41,10 @@ using namespace OpenLoco::Interop;
 
 namespace OpenLoco::Ui::Windows::ToolbarTop::Game
 {
-    static loco_global<uint32_t, 0x009C86F8> _zoomTicks;
-    static loco_global<uint8_t, 0x009C870C> _lastTownOption;
-    static loco_global<uint8_t, 0x009C870D> _lastPortOption;
-    static loco_global<uint8_t[18], 0x0050A006> _availableObjects;
+    static uint32_t _zoomTicks = 0; // Was loco_global at 0x009C86F8
+    static uint8_t _lastTownOption = 0; // Was loco_global at 0x009C870C
+    static uint8_t _lastPortOption = 0; // Was loco_global at 0x009C870D
+    static std::array<uint8_t, 18> _availableObjects = {}; // Was loco_global at 0x0050A006
     // Replaces 0x0050A006
     AvailableTracksAndRoads availableTracks;
 
@@ -181,11 +181,11 @@ namespace OpenLoco::Ui::Windows::ToolbarTop::Game
             return;
         }
 
-        static loco_global<char[512], 0x0112CE04> _savePath;
+        static std::array<char, 512> _savePath = {}; // Was loco_global at 0x0112CE04
         auto path = fs::u8path(&_savePath[0]).replace_extension(S5::extensionSV5);
 
         // Store path to active file
-        static loco_global<char[256], 0x0050B745> _currentGameFilePath;
+        static std::array<char, 256> _currentGameFilePath = {}; // Was loco_global at 0x0050B745
         strncpy(&_currentGameFilePath[0], path.u8string().c_str(), std::size(_currentGameFilePath));
 
         S5::SaveFlags flags = S5::SaveFlags::none;

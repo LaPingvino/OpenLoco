@@ -102,18 +102,18 @@ using namespace OpenLoco::World;
 
 namespace OpenLoco::GameCommands
 {
-    static loco_global<CompanyId, 0x009C68EB> _updatingCompanyId;
-    static loco_global<uint8_t, 0x00508F08> _gameCommandNestLevel;
+    static CompanyId _updatingCompanyId = 0; // Was loco_global at 0x009C68EB
+    static uint8_t _gameCommandNestLevel = 0; // Was loco_global at 0x00508F08
 
     static uint16_t _gameCommandFlags;
 
-    static loco_global<const TileElement*, 0x009C68D0> _9C68D0;
+    static const TileElement* _9C68D0 = nullptr; // Was loco_global at 0x009C68D0
 
-    static loco_global<Pos3, 0x009C68E0> _gGameCommandPosition;
-    static loco_global<StringId, 0x009C68E6> _gGameCommandErrorText;
-    static loco_global<StringId, 0x009C68E8> _gGameCommandErrorTitle;
-    static loco_global<uint8_t, 0x009C68EA> _gGameCommandExpenditureType; // pre-multiplied by 4
-    static loco_global<CompanyId, 0x009C68EE> _errorCompanyId;
+    static Pos3 _gGameCommandPosition = {}; // Was loco_global at 0x009C68E0
+    static StringId _gGameCommandErrorText = 0; // Was loco_global at 0x009C68E6
+    static StringId _gGameCommandErrorTitle = 0; // Was loco_global at 0x009C68E8
+    static uint8_t _gGameCommandExpenditureType = 0; // Was loco_global at 0x009C68EA
+    static CompanyId _errorCompanyId = 0; // Was loco_global at 0x009C68EE
 
     using GameCommandFunc = void (*)(registers& regs);
 
@@ -445,7 +445,7 @@ namespace OpenLoco::GameCommands
         // advanced errors
         if (_9C68D0 != World::TileManager::kInvalidTile)
         {
-            auto tile = *_9C68D0;
+            auto tile = _9C68D0;
 
             switch (tile->type())
             {

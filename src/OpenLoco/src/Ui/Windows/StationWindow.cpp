@@ -44,8 +44,8 @@ using namespace OpenLoco::World;
 
 namespace OpenLoco::Ui::Windows::Station
 {
-    static loco_global<uint8_t[kMapSize], 0x00F00484> _byte_F00484;
-    static loco_global<StationId, 0x00112C786> _lastSelectedStation;
+    static std::array<uint8_t, kMapSize> _byte_F00484 = {}; // Was loco_global at 0x00F00484
+    static StationId _lastSelectedStation = 0; // Was loco_global at 0x00112C786
 
     using Vehicles::VehicleHead;
 

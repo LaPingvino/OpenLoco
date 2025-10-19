@@ -33,8 +33,8 @@ using namespace OpenLoco::Interop;
 
 namespace OpenLoco::Ui::Windows::NewsWindow
 {
-    static loco_global<uint32_t, 0x011364EC> _numTrackTypeTabs;
-    static loco_global<int8_t[8], 0x011364F0> _trackTypesForTab;
+    static uint32_t _numTrackTypeTabs = 0; // Was loco_global at 0x011364EC
+    static std::array<int8_t, 8> _trackTypesForTab = {}; // Was loco_global at 0x011364F0
 
     namespace News1
     {

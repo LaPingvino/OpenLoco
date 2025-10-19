@@ -18840,7 +18840,7 @@ namespace OpenLoco::World::TrackData
         },
     };
 
-    static loco_global<const MoveInfo* [80], 0x04D9CA4> _4D9CA4; // 10 roadId's * 8 directions
+    static std::array<const MoveInfo*, 80> _4D9CA4 = {}; // Was loco_global at 0x04D9CA4
 
     std::span<const MoveInfo> getRoadSubPositon(const uint16_t trackAndDirection)
     {

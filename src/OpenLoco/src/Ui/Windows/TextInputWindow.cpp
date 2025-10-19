@@ -36,7 +36,7 @@ namespace OpenLoco::Ui::Windows::TextInput
 
     static Ui::TextInput::InputSession inputSession;
 
-    static loco_global<char[16], 0x0112C826> _commonFormatArgs;
+    static std::array<char, 16> _commonFormatArgs = {}; // Was loco_global at 0x0112C826
 
     namespace Widx
     {

@@ -48,7 +48,7 @@ using namespace OpenLoco::Ui;
 
 namespace OpenLoco::CompanyManager
 {
-    static loco_global<Colour[Limits::kMaxCompanies + 1], 0x009C645C> _companyColours;
+    static std::array<Colour, Limits::kMaxCompanies + 1> _companyColours = {}; // Was loco_global at 0x009C645C
 
     static void produceCompanies();
 

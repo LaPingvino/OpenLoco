@@ -35,41 +35,41 @@ namespace OpenLoco::CompanyAi
 {
     using ValidTrackRoadIds = sfl::static_vector<uint8_t, 64>;
 
-    static Interop::loco_global<uint8_t, 0x0112C518> _pathFindUndoCount112C518;        // company 0x85EE
-    static Interop::loco_global<int32_t, 0x0112C398> _pathFindTotalTrackRoadWeighting; // company 0x85DE
-    static Interop::loco_global<uint8_t, 0x0112C519> _trackRoadObjType112C519;
-    static Interop::loco_global<World::Pos2, 0x0112C3C2> _unk1Pos112C3C2;
-    static Interop::loco_global<World::SmallZ, 0x0112C515> _unk1PosBaseZ112C515;
-    static Interop::loco_global<uint8_t, 0x0112C516> _unk1Rot112C516;
-    static Interop::loco_global<World::Pos2, 0x0112C3C6> _unk2Pos112C3C6;
-    static Interop::loco_global<World::SmallZ, 0x0112C517> _unk2PosBaseZ112C517;
-    static Interop::loco_global<World::Pos2, 0x0112C3CC> _unk3Pos112C3CC;
-    static Interop::loco_global<World::SmallZ, 0x0112C59C> _unk3PosBaseZ112C59C;
-    static Interop::loco_global<uint32_t, 0x0112C364> _unk112C364;
-    static Interop::loco_global<uint32_t, 0x0112C36C> _unk112C36C;
-    static Interop::loco_global<uint32_t, 0x0112C35C> _unk112C35C;
-    static Interop::loco_global<uint32_t, 0x0112C34C> _unk112C34C; // currency_32t
-    static Interop::loco_global<uint8_t, 0x0112C59E> _unk3Rot112C59E;
-    static Interop::loco_global<uint32_t, 0x0112C388> _createTrackRoadCommandMods;
-    static Interop::loco_global<uint32_t, 0x0112C38C> _createTrackRoadCommandRackRail;
-    static Interop::loco_global<Company*, 0x0112C390> _unk112C390;
-    static Interop::loco_global<uint32_t, 0x0112C358> _maxTrackRoadWeightingLimit; // Limits the extent of the track/road placement search
-    static Interop::loco_global<uint32_t, 0x0112C374> _createTrackRoadCommandAiUnkFlags;
-    static Interop::loco_global<uint32_t, 0x0112C378> _trackRoadPlacementCurrentWeighting;
-    static Interop::loco_global<uint32_t, 0x0112C37C> _trackRoadPlacementBridgeWeighting;
-    static Interop::loco_global<uint32_t, 0x0112C380> _numBuildingRequiredDestroyed112C380;
-    static Interop::loco_global<uint8_t, 0x0112C59B> _queryTrackRoadPlacementFlags;
-    static Interop::loco_global<uint8_t, 0x0112C59F> _createTrackRoadCommandBridge0;
-    static Interop::loco_global<uint8_t, 0x0112C5A0> _createTrackRoadCommandBridge1;
-    static Interop::loco_global<uint8_t, 0x0112C5A1> _createTrackRoadCommandBridge2;
-    static Interop::loco_global<uint16_t, 0x0112C4D4> _unkTad112C4D4;
-    static Interop::loco_global<uint16_t, 0x0112C3CA> _unkTad112C3CA;
-    static Interop::loco_global<uint16_t, 0x0112C3D0> _queryTrackRoadPlacementMinScore;
-    static Interop::loco_global<uint16_t, 0x0112C3D2> _queryTrackRoadPlacementMinWeighting;
-    static Interop::loco_global<uint8_t, 0x01136073> _byte_1136073;
-    static Interop::loco_global<World::MicroZ, 0x01136074> _byte_1136074;
-    static Interop::loco_global<uint8_t, 0x01136075> _byte_1136075;           // bridgeType of any overlapping track
-    static Interop::loco_global<uint8_t, 0x0112C2E9> _alternateTrackObjectId; // set from GameCommands::createRoad
+    static uint8_t _pathFindUndoCount112C518 = 0; // Was loco_global at 0x0112C518
+    static int32_t _pathFindTotalTrackRoadWeighting = 0; // Was loco_global at 0x0112C398
+    static uint8_t _trackRoadObjType112C519 = 0; // Was loco_global at 0x0112C519
+    static World::Pos2 _unk1Pos112C3C2 = {}; // Was loco_global at 0x0112C3C2
+    static World::SmallZ _unk1PosBaseZ112C515 = {}; // Was loco_global at 0x0112C515
+    static uint8_t _unk1Rot112C516 = 0; // Was loco_global at 0x0112C516
+    static World::Pos2 _unk2Pos112C3C6 = {}; // Was loco_global at 0x0112C3C6
+    static World::SmallZ _unk2PosBaseZ112C517 = {}; // Was loco_global at 0x0112C517
+    static World::Pos2 _unk3Pos112C3CC = {}; // Was loco_global at 0x0112C3CC
+    static World::SmallZ _unk3PosBaseZ112C59C = {}; // Was loco_global at 0x0112C59C
+    static uint32_t _unk112C364 = 0; // Was loco_global at 0x0112C364
+    static uint32_t _unk112C36C = 0; // Was loco_global at 0x0112C36C
+    static uint32_t _unk112C35C = 0; // Was loco_global at 0x0112C35C
+    static uint32_t _unk112C34C = 0; // Was loco_global at 0x0112C34C
+    static uint8_t _unk3Rot112C59E = 0; // Was loco_global at 0x0112C59E
+    static uint32_t _createTrackRoadCommandMods = 0; // Was loco_global at 0x0112C388
+    static uint32_t _createTrackRoadCommandRackRail = 0; // Was loco_global at 0x0112C38C
+    static Company* _unk112C390 = nullptr; // Was loco_global at 0x0112C390
+    static uint32_t _maxTrackRoadWeightingLimit = 0; // Was loco_global at 0x0112C358
+    static uint32_t _createTrackRoadCommandAiUnkFlags = 0; // Was loco_global at 0x0112C374
+    static uint32_t _trackRoadPlacementCurrentWeighting = 0; // Was loco_global at 0x0112C378
+    static uint32_t _trackRoadPlacementBridgeWeighting = 0; // Was loco_global at 0x0112C37C
+    static uint32_t _numBuildingRequiredDestroyed112C380 = 0; // Was loco_global at 0x0112C380
+    static uint8_t _queryTrackRoadPlacementFlags = 0; // Was loco_global at 0x0112C59B
+    static uint8_t _createTrackRoadCommandBridge0 = 0; // Was loco_global at 0x0112C59F
+    static uint8_t _createTrackRoadCommandBridge1 = 0; // Was loco_global at 0x0112C5A0
+    static uint8_t _createTrackRoadCommandBridge2 = 0; // Was loco_global at 0x0112C5A1
+    static uint16_t _unkTad112C4D4 = 0; // Was loco_global at 0x0112C4D4
+    static uint16_t _unkTad112C3CA = 0; // Was loco_global at 0x0112C3CA
+    static uint16_t _queryTrackRoadPlacementMinScore = 0; // Was loco_global at 0x0112C3D0
+    static uint16_t _queryTrackRoadPlacementMinWeighting = 0; // Was loco_global at 0x0112C3D2
+    static uint8_t _byte_1136073 = 0; // Was loco_global at 0x01136073
+    static World::MicroZ _byte_1136074 = {}; // Was loco_global at 0x01136074
+    static uint8_t _byte_1136075 = 0; // Was loco_global at 0x01136075
+    static uint8_t _alternateTrackObjectId = 0; // Was loco_global at 0x0112C2E9
 
     // 0x00483A7E
     static ValidTrackRoadIds sub_483A7E(const Company& company, const AiThought& thought)
@@ -134,33 +134,33 @@ namespace OpenLoco::CompanyAi
             // 0x00483BAF
             if (_unk2PosBaseZ112C517 == _unk3PosBaseZ112C59C)
             {
-                const auto diff = *_unk2Pos112C3C6 - *_unk3Pos112C3CC;
+                const auto diff = _unk2Pos112C3C6 - *_unk3Pos112C3CC;
                 const auto absDiff = World::Pos2(std::abs(diff.x), std::abs(diff.y));
                 if (absDiff.x <= 3 * World::kTileSize && absDiff.y <= 3 * World::kTileSize)
                 {
-                    _createTrackRoadCommandAiUnkFlags = *_createTrackRoadCommandAiUnkFlags & ~(1U << 22);
+                    _createTrackRoadCommandAiUnkFlags = _createTrackRoadCommandAiUnkFlags & ~(1U << 22);
                 }
             }
             if (_unk2PosBaseZ112C517 == _unk1PosBaseZ112C515)
             {
-                const auto diff = *_unk2Pos112C3C6 - *_unk1Pos112C3C2;
+                const auto diff = *_unk2Pos112C3C6 - _unk1Pos112C3C2;
                 const auto absDiff = World::Pos2(std::abs(diff.x), std::abs(diff.y));
                 if (absDiff.x <= 3 * World::kTileSize && absDiff.y <= 3 * World::kTileSize)
                 {
-                    _createTrackRoadCommandAiUnkFlags = *_createTrackRoadCommandAiUnkFlags & ~(1U << 22);
+                    _createTrackRoadCommandAiUnkFlags = _createTrackRoadCommandAiUnkFlags & ~(1U << 22);
                 }
             }
         }
 
         if (isRoad)
         {
-            _createTrackRoadCommandAiUnkFlags = *_createTrackRoadCommandAiUnkFlags & ~(1U << 22);
+            _createTrackRoadCommandAiUnkFlags = _createTrackRoadCommandAiUnkFlags & ~(1U << 22);
 
             auto* roadObj = ObjectManager::get<RoadObject>(thought.trackObjId & ~(1U << 7));
             _createTrackRoadCommandAiUnkFlags |= (1U << 21);
             if (roadObj->hasFlags(RoadObjectFlags::unk_03))
             {
-                _createTrackRoadCommandAiUnkFlags = *_createTrackRoadCommandAiUnkFlags & ~(1U << 21);
+                _createTrackRoadCommandAiUnkFlags = _createTrackRoadCommandAiUnkFlags & ~(1U << 21);
                 _createTrackRoadCommandAiUnkFlags |= (1U << 20);
             }
         }
@@ -353,7 +353,7 @@ namespace OpenLoco::CompanyAi
             return;
         }
 
-        _createTrackRoadCommandAiUnkFlags = *_createTrackRoadCommandAiUnkFlags | (1U << 22);
+        _createTrackRoadCommandAiUnkFlags = _createTrackRoadCommandAiUnkFlags | (1U << 22);
 
         if (company.var_85C3 & (1U << 3))
         {
@@ -366,7 +366,7 @@ namespace OpenLoco::CompanyAi
                     const auto diffY = std::abs(_unk3Pos112C3CC->y - pos.y);
                     if (diffX <= 3 * World::kTileSize && diffY <= 3 * World::kTileSize)
                     {
-                        _createTrackRoadCommandAiUnkFlags = *_createTrackRoadCommandAiUnkFlags & ~(1U << 22);
+                        _createTrackRoadCommandAiUnkFlags = _createTrackRoadCommandAiUnkFlags & ~(1U << 22);
                     }
                 }
             }
@@ -379,7 +379,7 @@ namespace OpenLoco::CompanyAi
                     const auto diffY = std::abs(_unk1Pos112C3C2->y - pos.y);
                     if (diffX <= 3 * World::kTileSize && diffY <= 3 * World::kTileSize)
                     {
-                        _createTrackRoadCommandAiUnkFlags = *_createTrackRoadCommandAiUnkFlags & ~(1U << 22);
+                        _createTrackRoadCommandAiUnkFlags = _createTrackRoadCommandAiUnkFlags & ~(1U << 22);
                     }
                 }
             }
@@ -407,7 +407,7 @@ namespace OpenLoco::CompanyAi
         args.pos = pos;
         args.mods = 0;
         args.unk = false;
-        args.unkFlags = *_createTrackRoadCommandAiUnkFlags >> 20;
+        args.unkFlags = _createTrackRoadCommandAiUnkFlags >> 20;
 
         {
             auto regs = static_cast<Interop::registers>(args);
@@ -544,7 +544,7 @@ namespace OpenLoco::CompanyAi
         args.bridge = _createTrackRoadCommandBridge0;
         args.pos = pos;
         args.mods = 0;
-        args.unkFlags = *_createTrackRoadCommandAiUnkFlags >> 16;
+        args.unkFlags = _createTrackRoadCommandAiUnkFlags >> 16;
 
         {
             auto regs = static_cast<Interop::registers>(args);
@@ -871,7 +871,7 @@ namespace OpenLoco::CompanyAi
                         args.bridge = _createTrackRoadCommandBridge0;
                     }
                 }
-                args.unkFlags = *_createTrackRoadCommandAiUnkFlags >> 20;
+                args.unkFlags = _createTrackRoadCommandAiUnkFlags >> 20;
                 args.mods = _createTrackRoadCommandMods >> 16;
                 if ((World::TrackData::getTrackMiscData(args.trackId).flags & World::Track::CommonTraitFlags::steepSlope) != World::Track::CommonTraitFlags::none)
                 {
@@ -1116,7 +1116,7 @@ namespace OpenLoco::CompanyAi
                 {
                     args.bridge = _createTrackRoadCommandBridge0;
                 }
-                args.unkFlags = *_createTrackRoadCommandAiUnkFlags >> 16;
+                args.unkFlags = _createTrackRoadCommandAiUnkFlags >> 16;
                 args.mods = _createTrackRoadCommandMods >> 16;
                 if ((World::TrackData::getRoadMiscData(args.roadId).flags & World::Track::CommonTraitFlags::steepSlope) != World::Track::CommonTraitFlags::none)
                 {
@@ -2329,11 +2329,11 @@ namespace OpenLoco::CompanyAi
     static uint32_t sub_485B68()
     {
         const auto startPos = World::Pos3{ _unk2Pos112C3C6->x, _unk2Pos112C3C6->y, _unk2PosBaseZ112C517 * World::kSmallZStep };
-        const auto startTad = *_unkTad112C3CA;
+        const auto startTad = _unkTad112C3CA;
         const auto targetPos = World::Pos3{ _unk1Pos112C3C2->x, _unk1Pos112C3C2->y, _unk1PosBaseZ112C515 * World::kSmallZStep };
-        const auto targetRot = *_unk1Rot112C516;
+        const auto targetRot = _unk1Rot112C516;
         const auto companyId = GameCommands::getUpdatingCompanyId();
-        const auto trackRoadObjId = *_trackRoadObjType112C519;
+        const auto trackRoadObjId = _trackRoadObjType112C519;
         if (trackRoadObjId & (1U << 7))
         {
             const auto roadObjId = trackRoadObjId & ~(1U << 7);

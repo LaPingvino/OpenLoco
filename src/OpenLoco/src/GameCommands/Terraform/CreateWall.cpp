@@ -275,8 +275,8 @@ namespace OpenLoco::GameCommands
         }
 
         // TODO: manager?
-        static loco_global<World::WallElement*, 0x01136470> _lastPlacedWall;
-        *_lastPlacedWall = wall;
+        static World::WallElement* _lastPlacedWall = nullptr; // Was loco_global at 0x01136470
+        _lastPlacedWall = wall;
 
         Ui::ViewportManager::invalidate(args.pos, wall->baseHeight(), wall->baseHeight() + 72, ZoomLevel::half);
 

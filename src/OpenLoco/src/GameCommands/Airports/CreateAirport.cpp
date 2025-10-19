@@ -20,9 +20,9 @@
 
 namespace OpenLoco::GameCommands
 {
-    static loco_global<StationId, 0x0112C744> _lastPlacedAirportStationId;
-    static loco_global<uint32_t, 0x00112C734> _lastConstructedAdjoiningStationId;           // Can be 0xFFFF'FFFFU for no adjoining station
-    static loco_global<World::Pos2, 0x00112C792> _lastConstructedAdjoiningStationCentrePos; // Can be x = -1 for no adjoining station
+    static StationId _lastPlacedAirportStationId = 0; // Was loco_global at 0x0112C744
+    static uint32_t _lastConstructedAdjoiningStationId = 0; // Was loco_global at 0x00112C734
+    static World::Pos2 _lastConstructedAdjoiningStationCentrePos = -1 for no adjoining station; // Was loco_global at 0x00112C792
 
     // 0x00490372
     static StationManager::NearbyStation findNearbyStationAirport(World::Pos3 pos, uint8_t airportObjectId, uint8_t rotation)

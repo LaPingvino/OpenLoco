@@ -12,10 +12,10 @@ using namespace OpenLoco::Literals;
 
 namespace OpenLoco::Vehicles
 {
-    static loco_global<int32_t, 0x0113612C> _vehicleUpdate_var_113612C; // Speed
-    static loco_global<int32_t, 0x01136130> _vehicleUpdate_var_1136130; // Speed
-    static loco_global<Speed32, 0x01136134> _vehicleUpdate_var_1136134; // Speed
-    static loco_global<VehicleHead*, 0x01136118> _vehicleUpdate_head;
+    static int32_t _vehicleUpdate_var_113612C = 0; // Was loco_global at 0x0113612C
+    static int32_t _vehicleUpdate_var_1136130 = 0; // Was loco_global at 0x01136130
+    static Speed32 _vehicleUpdate_var_1136134 = {}; // Was loco_global at 0x01136134
+    static VehicleHead* _vehicleUpdate_head = nullptr; // Was loco_global at 0x01136118
 
     constexpr const uint8_t kBrakeLightTimeout = 7;
 
@@ -132,16 +132,16 @@ namespace OpenLoco::Vehicles
         }
 
         motorState = MotorState::accelerating;
-        const auto speedDiff = currentSpeed - *_vehicleUpdate_var_1136134;
+        const auto speedDiff = currentSpeed - _vehicleUpdate_var_1136134;
         if (speedDiff > 0.0_mph)
         {
             motorState = MotorState::braking;
             const auto newSpeed = currentSpeed - (currentSpeed / 64 + 0.18311_mph);
-            currentSpeed = std::max(newSpeed, std::max(*_vehicleUpdate_var_1136134, 5.0_mph));
+            currentSpeed = std::max(newSpeed, std::max(_vehicleUpdate_var_1136134, 5.0_mph));
             return sub_4A9F20();
         }
 
-        if (!(*_vehicleUpdate_head)->hasVehicleFlags(VehicleFlags::manualControl))
+        if (!(_vehicleUpdate_head)->hasVehicleFlags(VehicleFlags::manualControl))
         {
             if (speedDiff >= -1.5_mph)
             {
@@ -274,11 +274,11 @@ namespace OpenLoco::Vehicles
             // to behave similar we always take the vehicleUpdate_var_1136134 on negative speed
             if (newSpeed < 0.0_mph)
             {
-                newSpeed = *_vehicleUpdate_var_1136134;
+                newSpeed = _vehicleUpdate_var_1136134;
             }
             else
             {
-                newSpeed = std::min(newSpeed, *_vehicleUpdate_var_1136134);
+                newSpeed = std::min(newSpeed, _vehicleUpdate_var_1136134);
             }
         }
         currentSpeed = newSpeed;

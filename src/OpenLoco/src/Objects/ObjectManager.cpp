@@ -91,10 +91,9 @@ namespace OpenLoco::ObjectManager
 #pragma pack(pop)
 
     // static_assert(Traits::IsPOD<ObjectHeader>::value, "Object Header must be trivial for I/O purposes"); // COMMENTED FOR 64-BIT DEBUG
+    std::array<ObjectRepositoryItem, kMaxObjectTypes> _objectRepository = {}; // Was loco_global at 0x4FE0B8
 
-    loco_global<ObjectRepositoryItem[kMaxObjectTypes], 0x4FE0B8> _objectRepository;
-
-    static loco_global<bool, 0x0050D161> _isPartialLoaded;
+    static bool _isPartialLoaded = false; // Was loco_global at 0x0050D161
 
     // 0x0050D160
     static bool _isTemporaryObject = false;
@@ -534,7 +533,7 @@ namespace OpenLoco::ObjectManager
             preLoadObj->header, static_cast<uint32_t>(preLoadObj->objectData.size())
         };
 
-        if (!*_isPartialLoaded)
+        if (!_isPartialLoaded)
         {
             callObjectLoad({ preLoadObj->header.getType(), id }, *preLoadObj->object, preLoadObj->objectData);
         }
@@ -1052,7 +1051,7 @@ namespace OpenLoco::ObjectManager
     }
 
     // TODO: Refactor this, variable is also defined in PaintSurface.cpp.
-    static loco_global<LandObjectFlags[getMaxObjects(ObjectType::land)], 0x00F003D3> _landObjectFlags;
+    static std::array<LandObjectFlags, getMaxObjects(ObjectType::land)> _landObjectFlags = {}; // Was loco_global at 0x00F003D3
 
     // 0x004697A1
     static void updateLandObjectFlags()

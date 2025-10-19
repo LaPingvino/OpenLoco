@@ -25,7 +25,7 @@ using namespace OpenLoco::Interop;
 
 namespace OpenLoco::VehicleManager
 {
-    static loco_global<Vehicles::SignalStateFlags, 0x005220BC> _vehicleManagerIgnoreSignalFlagsMasks;
+    static Vehicles::SignalStateFlags _vehicleManagerIgnoreSignalFlagsMasks = 0; // Was loco_global at 0x005220BC
 
     // 0x004A8826
     void update()

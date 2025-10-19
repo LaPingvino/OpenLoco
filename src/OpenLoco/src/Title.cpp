@@ -83,11 +83,11 @@ namespace OpenLoco::Title
     static TitleSequence::const_iterator _sequenceIterator;
     static uint16_t _waitCounter;
 
-    static loco_global<ObjectManager::SelectedObjectsFlags*, 0x50D144> _objectSelection;
+    static ObjectManager::SelectedObjectsFlags* _objectSelection = nullptr; // Was loco_global at 0x50D144
 
     static std::span<ObjectManager::SelectedObjectsFlags> getSelectedObjectFlags()
     {
-        return std::span<ObjectManager::SelectedObjectsFlags>(*_objectSelection, ObjectManager::getNumInstalledObjects());
+        return std::span<ObjectManager::SelectedObjectsFlags>(_objectSelection, ObjectManager::getNumInstalledObjects());
     }
 
     // 0x004442C4

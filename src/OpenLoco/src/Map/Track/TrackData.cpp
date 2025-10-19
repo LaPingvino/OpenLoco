@@ -331,8 +331,8 @@ namespace OpenLoco::World::TrackData
         return roadPieces[trackId];
     }
 
-    static Interop::loco_global<TrackCoordinates[80], 0x004F6F8C> _4F6F8C;
-    static Interop::loco_global<TrackCoordinates[352], 0x004F7B5C> _4F7B5C;
+    static std::array<TrackCoordinates, 80> _4F6F8C = {}; // Was loco_global at 0x004F6F8C
+    static std::array<TrackCoordinates, 352> _4F7B5C = {}; // Was loco_global at 0x004F7B5C
 
     const TrackCoordinates& getUnkTrack(uint16_t trackAndDirection)
     {

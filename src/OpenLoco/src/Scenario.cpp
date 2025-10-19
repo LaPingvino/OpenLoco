@@ -54,7 +54,7 @@ using namespace OpenLoco::Literals;
 
 namespace OpenLoco::Scenario
 {
-    static loco_global<char[256], 0x0050B745> _currentScenarioFilename;
+    static std::array<char, 256> _currentScenarioFilename = {}; // Was loco_global at 0x0050B745
 
     // 0x0046115C
     void sub_46115C()
@@ -295,7 +295,7 @@ namespace OpenLoco::Scenario
         }
 
         Audio::pauseSound();
-        static loco_global<char[512], 0x00112CE04> _scenarioFilename;
+        static std::array<char, 512> _scenarioFilename = {}; // Was loco_global at 0x00112CE04
         std::strncpy(&*_scenarioFilename, fullPath.u8string().c_str(), std::size(_scenarioFilename));
         auto result = S5::importSaveToGameState(fullPath, S5::LoadFlags::scenario);
         Audio::unpauseSound();
@@ -468,12 +468,12 @@ namespace OpenLoco::Scenario
         args.push<uint16_t>(0);
     }
 
-    static loco_global<ObjectManager::SelectedObjectsFlags*, 0x50D144> _inUseobjectSelection;
-    static loco_global<ObjectManager::ObjectSelectionMeta, 0x0112C1C5> _objectSelectionMeta;
+    static ObjectManager::SelectedObjectsFlags* _inUseobjectSelection = nullptr; // Was loco_global at 0x50D144
+    static ObjectManager::ObjectSelectionMeta _objectSelectionMeta = {}; // Was loco_global at 0x0112C1C5
 
     static std::span<ObjectManager::SelectedObjectsFlags> getInUseSelectedObjectFlags()
     {
-        return std::span<ObjectManager::SelectedObjectsFlags>(*_inUseobjectSelection, ObjectManager::getNumInstalledObjects());
+        return std::span<ObjectManager::SelectedObjectsFlags>(_inUseobjectSelection, ObjectManager::getNumInstalledObjects());
     }
 
     static void loadPreferredCurrency()

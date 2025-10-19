@@ -54,9 +54,9 @@ namespace OpenLoco::Audio
 
     [[maybe_unused]] constexpr int32_t kNumSoundChannels = 16;
 
-    static loco_global<uint32_t, 0x0050D1EC> _audioInitialised;
-    static loco_global<bool, 0x0050D554> _audioIsPaused;
-    static loco_global<bool, 0x0050D555> _audioIsEnabled;
+    static uint32_t _audioInitialised = 0; // Was loco_global at 0x0050D1EC
+    static bool _audioIsPaused = false; // Was loco_global at 0x0050D554
+    static bool _audioIsEnabled = false; // Was loco_global at 0x0050D555
     // 0x0050D5B0
     static std::optional<PathId> _chosenAmbientNoisePathId = std::nullopt;
 
@@ -497,7 +497,7 @@ namespace OpenLoco::Audio
 
     bool shouldSoundLoop(SoundId id)
     {
-        loco_global<uint8_t[64], 0x0050D514> _unk_50D514;
+        std::array<uint8_t, 64> _unk_50D514 = {}; // Was loco_global at 0x0050D514
         if (isObjectSoundId(id))
         {
             auto obj = getSoundObject(id);
@@ -1038,7 +1038,7 @@ namespace OpenLoco::Audio
     // 0x0048ABE3
     void stopAmbientNoise()
     {
-        loco_global<uint32_t, 0x0050D5AC> _50D5AC;
+        uint32_t _50D5AC = 0; // Was loco_global at 0x0050D5AC
         if (_audioInitialised && _50D5AC != 1)
         {
             stopChannel(ChannelId::ambient);

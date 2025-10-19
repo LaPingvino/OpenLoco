@@ -18,10 +18,10 @@
 
 namespace OpenLoco::GameCommands
 {
-    static loco_global<StationId, 0x0112C730> _lastPlacedTrackStationId;
-    static loco_global<bool, 0x0112C7A9> _112C7A9;
-    static loco_global<uint32_t, 0x00112C734> _lastConstructedAdjoiningStationId;           // Can be 0xFFFF'FFFFU for no adjoining station
-    static loco_global<World::Pos2, 0x00112C792> _lastConstructedAdjoiningStationCentrePos; // Can be x = -1 for no adjoining station
+    static StationId _lastPlacedTrackStationId = 0; // Was loco_global at 0x0112C730
+    static bool _112C7A9 = false; // Was loco_global at 0x0112C7A9
+    static uint32_t _lastConstructedAdjoiningStationId = 0; // Was loco_global at 0x00112C734
+    static World::Pos2 _lastConstructedAdjoiningStationCentrePos = -1 for no adjoining station; // Was loco_global at 0x00112C792
 
     // 0x004900B8
     static StationManager::NearbyStation findNearbyStationOnRoad(World::Pos3 pos, uint16_t tad, uint8_t roadObjectId)

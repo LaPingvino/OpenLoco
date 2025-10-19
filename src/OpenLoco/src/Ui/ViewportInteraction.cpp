@@ -161,7 +161,7 @@ namespace OpenLoco::Ui::ViewportInteraction
         return getStationArguments(station->stationId());
     }
 
-    static loco_global<StationId, 0x00F252A4> _hoveredStationId;
+    static StationId _hoveredStationId = 0; // Was loco_global at 0x00F252A4
 
     // 0x004CD9B0
     static bool getStationArguments(const StationId id)
@@ -1473,9 +1473,9 @@ namespace OpenLoco::Ui::ViewportInteraction
     // 0x00459E54
     std::pair<ViewportInteraction::InteractionArg, Viewport*> getMapCoordinatesFromPos(int32_t screenX, int32_t screenY, InteractionItemFlags flags)
     {
-        static loco_global<uint8_t, 0x0050BF68> _50BF68; // If in get map coords
-        static loco_global<Gfx::RenderTarget, 0x00E0C3E4> _rt1;
-        static loco_global<Gfx::RenderTarget, 0x00E0C3F4> _rt2;
+        static uint8_t _50BF68 = 0; // Was loco_global at 0x0050BF68
+        static Gfx::RenderTarget _rt1 = {}; // Was loco_global at 0x00E0C3E4
+        static Gfx::RenderTarget _rt2 = {}; // Was loco_global at 0x00E0C3F4
 
         _50BF68 = 1;
         ViewportInteraction::InteractionArg interaction{};

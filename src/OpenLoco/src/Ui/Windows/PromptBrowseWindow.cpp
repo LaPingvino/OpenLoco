@@ -79,7 +79,7 @@ namespace OpenLoco::Ui::Windows::PromptBrowse
     static char _displayFolderBuffer[512]; // 0x009DA084
     static char _filter[32];               // 0x009D9E64
 
-    static loco_global<char[512], 0x0112CE04> _savePath;
+    static std::array<char, 512> _savePath = {}; // Was loco_global at 0x0112CE04
 
     // 0x0050AEA8
     static std::unique_ptr<S5::SaveDetails> _previewSaveDetails;
@@ -922,7 +922,7 @@ namespace OpenLoco::Ui::Windows::PromptBrowse
         }
 
         // Copy directory and filename to buffer.
-        strncpy(_savePath.get(), path.u8string().c_str(), std::size(_savePath));
+        strncpy(_savePath, path.u8string().c_str(), std::size(_savePath));
 
         // Remember the current path for saved games
         if (_fileType == BrowseFileType::savedGame)

@@ -33,7 +33,7 @@ namespace OpenLoco::GameCommands
     {
         setExpenditureType(ExpenditureType::TrainRunningCosts);
 
-        static loco_global<EntityId, 0x0113621D> _headId_113621D;
+        static EntityId _headId_113621D = 0; // Was loco_global at 0x0113621D
         if (args.i == 1)
         {
             _headId_113621D = args.head;

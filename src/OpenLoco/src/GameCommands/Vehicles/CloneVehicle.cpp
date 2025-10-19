@@ -29,7 +29,7 @@ namespace OpenLoco::GameCommands
 
     static uint32_t cloneVehicle(EntityId head, uint8_t flags)
     {
-        static loco_global<EntityId, 0x0113642A> _113642A;
+        static EntityId _113642A = 0; // Was loco_global at 0x0113642A
         Vehicles::Vehicle existingTrain(head);
         Vehicles::VehicleHead* newHead = nullptr;
 

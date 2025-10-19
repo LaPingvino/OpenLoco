@@ -23,8 +23,8 @@ using namespace OpenLoco::Interop;
 namespace OpenLoco::Vehicles
 {
 
-    static loco_global<UpdateVar1136114Flags, 0x01136114> _vehicleUpdate_var_1136114;
-    static loco_global<EntityId, 0x0113610E> _vehicleUpdate_collisionCarComponent;
+    static UpdateVar1136114Flags _vehicleUpdate_var_1136114 = 0; // Was loco_global at 0x01136114
+    static EntityId _vehicleUpdate_collisionCarComponent = 0; // Was loco_global at 0x0113610E
     static constexpr int32_t kObjDistToHighPrecisionDistance = 2179;
 
 #pragma pack(push, 1)
@@ -1075,7 +1075,7 @@ namespace OpenLoco::Vehicles
 
     bool hasUpdateVar1136114Flags(UpdateVar1136114Flags flags)
     {
-        return (*_vehicleUpdate_var_1136114 & flags) != UpdateVar1136114Flags::none;
+        return (_vehicleUpdate_var_1136114 & flags) != UpdateVar1136114Flags::none;
     }
     void resetUpdateVar1136114Flags()
     {

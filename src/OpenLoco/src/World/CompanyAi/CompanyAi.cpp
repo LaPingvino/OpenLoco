@@ -83,10 +83,10 @@ namespace OpenLoco
 {
     static void removeEntityFromThought(AiThought& thought, size_t index);
 
-    static loco_global<StationId, 0x0112C730> _lastPlacedTrackStationId;
-    static loco_global<StationId, 0x0112C744> _lastPlacedAirportStationId;
-    static loco_global<StationId, 0x0112C748> _lastPlacedPortStationId;
-    static loco_global<EntityId, 0x0113642A> _lastCreatedVehicleId;
+    static StationId _lastPlacedTrackStationId = 0; // Was loco_global at 0x0112C730
+    static StationId _lastPlacedAirportStationId = 0; // Was loco_global at 0x0112C744
+    static StationId _lastPlacedPortStationId = 0; // Was loco_global at 0x0112C748
+    static EntityId _lastCreatedVehicleId = 0; // Was loco_global at 0x0113642A
 
     enum class ThoughtTypeFlags : uint32_t
     {

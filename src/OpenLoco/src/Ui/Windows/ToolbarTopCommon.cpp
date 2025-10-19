@@ -29,11 +29,11 @@ using namespace OpenLoco::Interop;
 
 namespace OpenLoco::Ui::Windows::ToolbarTop::Common
 {
-    static loco_global<uint32_t, 0x009C86F8> _zoomTicks;
+    static uint32_t _zoomTicks = 0; // Was loco_global at 0x009C86F8
 
-    static loco_global<uint8_t, 0x009C870C> _lastTownOption;
+    static uint8_t _lastTownOption = 0; // Was loco_global at 0x009C870C
 
-    static loco_global<uint8_t[18], 0x0050A006> _availableObjects;
+    static std::array<uint8_t, 18> _availableObjects = {}; // Was loco_global at 0x0050A006
 
     // 0x00439DE4
     void draw(Window& self, Gfx::DrawingContext& drawingCtx)

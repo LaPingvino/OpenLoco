@@ -62,7 +62,7 @@ namespace OpenLoco::Input
 
     static MouseButton _lastKnownButtonState;
 
-    static loco_global<uint16_t, 0x0050C19C> _timeSinceLastTick;
+    static uint16_t _timeSinceLastTick = 0; // Was loco_global at 0x0050C19C
 
     static Ui::Point _cursorPressed;
 
@@ -102,7 +102,7 @@ namespace OpenLoco::Input
 
     static bool _rightMouseButtonDown;
 
-    static loco_global<StationId, 0x00F252A4> _hoveredStationId;
+    static StationId _hoveredStationId = 0; // Was loco_global at 0x00F252A4
 
     static int32_t _cursorWheel;
 

@@ -51,7 +51,7 @@ namespace OpenLoco::Ui::Windows::IndustryList
     static uint8_t _industryGhostType;          // 0x00E0C3DA
     static IndustryId _industryGhostId;         // 0x00E0C3DB
 
-    static loco_global<IndustryId, 0x00E0C3C9> _industryLastPlacedId;
+    static IndustryId _industryLastPlacedId = 0; // Was loco_global at 0x00E0C3C9
 
     namespace Common
     {
@@ -1023,7 +1023,7 @@ namespace OpenLoco::Ui::Windows::IndustryList
             auto shade = Colours::getShade(self.getColour(WindowColour::secondary).c(), 4);
             drawingCtx.clearSingle(shade);
 
-            loco_global<uint16_t, 0x00E0C3C6> _word_E0C3C6;
+            uint16_t _word_E0C3C6 = 0; // Was loco_global at 0x00E0C3C6
             uint16_t xPos = 0;
             uint16_t yPos = 0;
             for (uint16_t i = 0; i < self.var_83C; i++)

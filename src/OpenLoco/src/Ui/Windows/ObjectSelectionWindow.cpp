@@ -211,15 +211,15 @@ namespace OpenLoco::Ui::Windows::ObjectSelectionWindow
         Visibility display;
     };
 
-    static loco_global<ObjectManager::SelectedObjectsFlags*, 0x50D144> _objectSelection;
+    static ObjectManager::SelectedObjectsFlags* _objectSelection = nullptr; // Was loco_global at 0x50D144
 
     static std::span<ObjectManager::SelectedObjectsFlags> getSelectedObjectFlags()
     {
-        return std::span<ObjectManager::SelectedObjectsFlags>(*_objectSelection, ObjectManager::getNumInstalledObjects());
+        return std::span<ObjectManager::SelectedObjectsFlags>(_objectSelection, ObjectManager::getNumInstalledObjects());
     }
 
     // _tabObjectCounts can be integrated after implementing sub_473A95
-    static loco_global<uint16_t[33], 0x00112C181> _tabObjectCounts;
+    static std::array<uint16_t, 33> _tabObjectCounts = {}; // Was loco_global at 0x00112C181
 
     static std::vector<TabObjectEntry> _tabObjectList;
     static uint16_t _numVisibleObjectsListed;
@@ -634,8 +634,8 @@ namespace OpenLoco::Ui::Windows::ObjectSelectionWindow
         }
     }
 
-    static loco_global<uint16_t[kMaxObjectTypes], 0x0112C1C5> _112C1C5;
-    static loco_global<uint32_t, 0x0112C209> _112C209;
+    static std::array<uint16_t, kMaxObjectTypes> _112C1C5 = {}; // Was loco_global at 0x0112C1C5
+    static uint32_t _112C209 = 0; // Was loco_global at 0x0112C209
 
     // 0x0047328D
     static void drawTabs(Window& self, Gfx::DrawingContext& drawingCtx)

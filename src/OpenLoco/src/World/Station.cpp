@@ -53,12 +53,12 @@ namespace OpenLoco
     struct CargoSearchState
     {
     private:
-        inline static loco_global<uint8_t[kMapSize], 0x00F00484> _map;
-        inline static loco_global<uint32_t, 0x0112C68C> _filter;
-        inline static loco_global<uint32_t[kMaxCargoStats], 0x0112C690> _score;
-        inline static loco_global<uint32_t, 0x0112C710> _producedCargoTypes;
-        inline static loco_global<IndustryId[kMaxCargoStats], 0x0112C7D2> _industry;
-        inline static loco_global<uint8_t, 0x0112C7F2> _byte_112C7F2;
+        static std::array<uint8_t, kMapSize> _map = {}; // Was loco_global at 0x00F00484
+        static uint32_t _filter = 0; // Was loco_global at 0x0112C68C
+        static std::array<uint32_t, kMaxCargoStats> _score = {}; // Was loco_global at 0x0112C690
+        static uint32_t _producedCargoTypes = 0; // Was loco_global at 0x0112C710
+        static std::array<IndustryId, kMaxCargoStats> _industry = {}; // Was loco_global at 0x0112C7D2
+        static uint8_t _byte_112C7F2 = 0; // Was loco_global at 0x0112C7F2
 
     public:
         bool mapHas1(const tile_coord_t x, const tile_coord_t y) const
@@ -137,7 +137,7 @@ namespace OpenLoco
 
         void resetScores()
         {
-            std::fill_n(_score.get(), kMaxCargoStats, 0);
+            std::fill_n(_score, kMaxCargoStats, 0);
         }
 
         uint32_t score(const uint8_t cargo)
@@ -174,7 +174,7 @@ namespace OpenLoco
 
         void resetIndustryMap()
         {
-            std::fill_n(_industry.get(), kMaxCargoStats, IndustryId::null);
+            std::fill_n(_industry, kMaxCargoStats, IndustryId::null);
         }
 
         IndustryId getIndustry(const uint8_t cargo) const

@@ -18,9 +18,9 @@ using namespace OpenLoco::Interop;
 
 namespace OpenLoco::Intro
 {
-    static loco_global<int32_t, 0x0050C190> _50C190;
-    static loco_global<State, 0x0050C195> _state;
-    static loco_global<bool, 0x0050C196> _50C196;
+    static int32_t _50C190 = 0; // Was loco_global at 0x0050C190
+    static State _state = 0; // Was loco_global at 0x0050C195
+    static bool _50C196 = false; // Was loco_global at 0x0050C196
 
     bool isActive()
     {
@@ -29,7 +29,7 @@ namespace OpenLoco::Intro
 
     State state()
     {
-        return *_state;
+        return _state;
     }
 
     void state(State state)
@@ -226,9 +226,9 @@ namespace OpenLoco::Intro
         {
             updateEnd2(drawingCtx);
         }
-        else if (enumValue(*_state) < std::size(kUpdateFunctions))
+        else if (enumValue(_state) < std::size(kUpdateFunctions))
         {
-            kUpdateFunctions[enumValue(*_state)](drawingCtx);
+            kUpdateFunctions[enumValue(_state)](drawingCtx);
         }
         sub_431695(0);
     }

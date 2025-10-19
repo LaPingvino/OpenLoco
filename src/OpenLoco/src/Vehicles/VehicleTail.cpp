@@ -14,7 +14,7 @@ using namespace OpenLoco::World;
 
 namespace OpenLoco::Vehicles
 {
-    static loco_global<int32_t, 0x0113612C> _vehicleUpdate_var_113612C; // Speed
+    static int32_t _vehicleUpdate_var_113612C = 0; // Was loco_global at 0x0113612C
 
     // 0x004794BC
     // This is enter level crossing if unk==8 and leave level crossing if unk==9
@@ -78,7 +78,7 @@ namespace OpenLoco::Vehicles
         const World::Pos3 _oldTilePos = World::Pos3(tileX, tileY, tileBaseZ * World::kSmallZStep);
 
         resetUpdateVar1136114Flags();
-        updateTrackMotion(*_vehicleUpdate_var_113612C);
+        updateTrackMotion(_vehicleUpdate_var_113612C);
 
         if (hasUpdateVar1136114Flags(UpdateVar1136114Flags::noRouteFound))
         {

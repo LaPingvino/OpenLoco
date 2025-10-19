@@ -26,12 +26,12 @@
 
 namespace OpenLoco::GameCommands
 {
-    static loco_global<StationId, 0x0112C730> _lastPlacedTrackStationId;
+    static StationId _lastPlacedTrackStationId = 0; // Was loco_global at 0x0112C730
 
-    static loco_global<World::TileManager::ElementPositionFlags, 0x01136072> _byte_1136072;
-    static loco_global<uint8_t, 0x01136073> _byte_1136073;
-    static loco_global<World::MicroZ, 0x01136074> _byte_1136074;
-    static loco_global<uint8_t, 0x01136075> _byte_1136075; // bridgeType of any overlapping track
+    static World::TileManager::ElementPositionFlags _byte_1136072 = 0; // Was loco_global at 0x01136072
+    static uint8_t _byte_1136073 = 0; // Was loco_global at 0x01136073
+    static World::MicroZ _byte_1136074 = {}; // Was loco_global at 0x01136074
+    static uint8_t _byte_1136075 = 0; // Was loco_global at 0x01136075
 
     namespace
     {

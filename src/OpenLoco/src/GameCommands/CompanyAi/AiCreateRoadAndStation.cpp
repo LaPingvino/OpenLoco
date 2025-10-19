@@ -9,7 +9,7 @@
 
 namespace OpenLoco::GameCommands
 {
-    static loco_global<uint8_t, 0x01136073> _byte_1136073;
+    static uint8_t _byte_1136073 = 0; // Was loco_global at 0x01136073
 
     // 0x0047B0DC
     static World::TileClearance::ClearFuncResult clearNearbyArea(World::TileElement& el)

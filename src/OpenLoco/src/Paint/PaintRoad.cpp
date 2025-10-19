@@ -24,8 +24,8 @@
 using namespace OpenLoco::Diagnostics;
 namespace OpenLoco::Paint
 {
-    static Interop::loco_global<uint8_t, 0x00522095> _byte_522095;
-    static Interop::loco_global<uint8_t, 0x0050BF68> _byte_50BF68;
+    static uint8_t _byte_522095 = 0; // Was loco_global at 0x00522095
+    static uint8_t _byte_50BF68 = 0; // Was loco_global at 0x0050BF68
 
     struct RoadPaintCommon
     {
@@ -506,7 +506,7 @@ namespace OpenLoco::Paint
 
         RoadPaintCommon roadSession{ baseRoadImageColour.withIndex(roadObj->image), baseRoadImageColour, roadObj->tunnel };
 
-        if (!(*_byte_522095 & (1 << 0)))
+        if (!(_byte_522095 & (1 << 0)))
         {
             auto& rpcp = kRoadPaintCommonParts[elRoad.roadId()][elRoad.sequenceIndex()];
             if (roadObj->paintStyle == 0)

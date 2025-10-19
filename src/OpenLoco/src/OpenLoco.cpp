@@ -105,8 +105,8 @@ namespace OpenLoco
     static Timepoint _lastUpdate = Clock::now();
     static CrashHandler::Handle _exHandler = nullptr;
 
-    static loco_global<uint16_t, 0x0050C19C> _time_since_last_tick;
-    static loco_global<uint32_t, 0x0050C19E> _last_tick_time;
+    static uint16_t _time_since_last_tick = 0; // Was loco_global at 0x0050C19C
+    static uint32_t _last_tick_time = 0; // Was loco_global at 0x0050C19E
 
     static int32_t _monthsSinceLastAutosave;
 
@@ -477,8 +477,8 @@ namespace OpenLoco
         }
     }
 
-    static loco_global<int8_t, 0x0050C197> _loadErrorCode;
-    static loco_global<StringId, 0x0050C198> _loadErrorMessage;
+    static int8_t _loadErrorCode = 0; // Was loco_global at 0x0050C197
+    static StringId _loadErrorMessage = 0; // Was loco_global at 0x0050C198
 
     // 0x0046ABCB
     static void tickLogic()
@@ -877,7 +877,7 @@ namespace OpenLoco
         Logging::info("SYSTEM STATS: Skipping loco_global memory access for 64-bit build");
         Logging::info("SYSTEM STATS: Total physical memory simulation bypassed");
 #else
-        static loco_global<uint32_t, 0x0113E21C> _totalPhysicalMemory;
+        static uint32_t _totalPhysicalMemory = 0; // Was loco_global at 0x0113E21C
         _totalPhysicalMemory = 0xFFFFFFFFU;
         Logging::info("SYSTEM STATS: Set total physical memory to 4GB (32-bit mode)");
 #endif

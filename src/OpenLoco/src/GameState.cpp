@@ -7,11 +7,11 @@ using namespace OpenLoco::Interop;
 namespace OpenLoco
 {
     // static_assert(Traits::IsPOD<GameState>::value == true, "GameState must be POD."); // COMMENTED FOR 64-BIT DEBUG
+    GameState _gameState = {}; // Was loco_global at 0x00525E18
 
-    loco_global<GameState, 0x00525E18> _gameState;
 
     GameState& getGameState()
     {
-        return *_gameState;
+        return _gameState;
     }
 }

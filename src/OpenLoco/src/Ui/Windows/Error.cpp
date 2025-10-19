@@ -22,7 +22,7 @@ using namespace OpenLoco::Interop;
 
 namespace OpenLoco::Ui::Windows::Error
 {
-    static loco_global<bool, 0x00508F09> _suppressErrorSound;
+    static bool _suppressErrorSound = false; // Was loco_global at 0x00508F09
 
     static char _errorText[512];         // 0x009C64B3
     static uint16_t _linebreakCount;     // 0x009C66B3

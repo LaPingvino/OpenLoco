@@ -25,11 +25,11 @@
 
 namespace OpenLoco::Game
 {
-    static loco_global<LoadOrQuitMode, 0x0050A002> _savePromptType;
+    static LoadOrQuitMode _savePromptType = 0; // Was loco_global at 0x0050A002
 
-    static loco_global<char[256], 0x0050B745> _currentScenarioFilename;
+    static std::array<char, 256> _currentScenarioFilename = {}; // Was loco_global at 0x0050B745
 
-    static loco_global<char[512], 0x0112CE04> _savePath;
+    static std::array<char, 512> _savePath = {}; // Was loco_global at 0x0112CE04
 
     using Ui::Windows::PromptBrowse::browse_type;
 

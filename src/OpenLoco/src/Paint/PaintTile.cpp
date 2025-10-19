@@ -66,8 +66,8 @@ namespace OpenLoco::Paint
     // 0x00461EA7
     static void paintConstructionArrow(PaintSession& session, const World::Pos2& loc)
     {
-        static loco_global<World::Pos3, 0x00F24942> _constructionArrowLocation;
-        static loco_global<uint8_t, 0x00F24948> _constructionArrowDirection;
+        static World::Pos3 _constructionArrowLocation = {}; // Was loco_global at 0x00F24942
+        static uint8_t _constructionArrowDirection = 0; // Was loco_global at 0x00F24948
         if (!World::hasMapSelectionFlag(World::MapSelectionFlags::enableConstructionArrow))
         {
             return;

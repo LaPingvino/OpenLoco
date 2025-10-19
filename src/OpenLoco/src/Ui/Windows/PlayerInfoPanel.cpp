@@ -60,8 +60,8 @@ namespace OpenLoco::Ui::Windows::PlayerInfoPanel
 
     std::vector<const Company*> _sortedCompanies;
 
-    static loco_global<uint16_t, 0x0050A004> _50A004;
-    static loco_global<uint16_t, 0x0113DC78> _113DC78; // Dropdown flags?
+    static uint16_t _50A004 = 0; // Was loco_global at 0x0050A004
+    static uint16_t _113DC78 = 0; // Was loco_global at 0x0113DC78
 
     // 0x43AA4C
     static void playerMouseDown(Ui::Window* self, WidgetIndex_t widgetIndex)
