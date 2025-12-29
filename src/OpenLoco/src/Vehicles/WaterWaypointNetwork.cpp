@@ -239,6 +239,8 @@ namespace OpenLoco::Vehicles
 
         void initialize()
         {
+            auto ripfTracker = RoutingMetrics::trackRIPF();
+
             extractWaypoints();
             buildConnections();
             buildWaterMassGroups();

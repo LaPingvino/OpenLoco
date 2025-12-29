@@ -36,6 +36,8 @@ namespace OpenLoco::Vehicles
 
         WaypointPathResult waypointBasedPathfind(const VehicleHead& head, World::TilePos2 targetPos, World::MicroZ waterLevel)
         {
+            auto ripfTracker = RoutingMetrics::trackRIPF();
+
             WaypointPathResult result;
             result.hasPath = false;
             result.direction = 0xFF;

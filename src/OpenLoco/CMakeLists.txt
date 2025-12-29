@@ -343,6 +343,8 @@ set(OLOCO_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Vehicles/Orders.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Vehicles/Routing.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Vehicles/RoutingManager.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Vehicles/RoutingMetrics.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Vehicles/RoutingMetrics.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Vehicles/Vehicle.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Vehicles/Vehicle1.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Vehicles/Vehicle2.cpp"
