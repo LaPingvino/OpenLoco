@@ -5,6 +5,7 @@
 #include "Ui/WindowManager.h"
 #include "VehicleManager.h"
 #include "VehicleHead.h"
+#include <OpenLoco/Diagnostics/Logging.h>
 
 namespace OpenLoco::Vehicles::RoutingMetrics
 {
@@ -60,6 +61,11 @@ namespace OpenLoco::Vehicles::RoutingMetrics
             _peakRIPFFramesRemaining--;
             if (_peakRIPFFramesRemaining == 0)
             {
+                // Log the expiring peak for optimization reference
+                auto shipCount = getWaterVehicleCount();
+                auto peakPerShip = shipCount > 0 ? _peakRIPF / static_cast<float>(shipCount) : 0.0f;
+                Diagnostics::Logging::info("RoutingMetrics: Peak RIPF expired - RIPF: {:.0f}, Ships: {}, RIPF/ship: {:.1f}", 
+                    _peakRIPF, shipCount, peakPerShip);
                 _peakRIPF = _rollingAverageRIPF;
             }
         }
@@ -74,6 +80,8 @@ namespace OpenLoco::Vehicles::RoutingMetrics
             _peakCallsFramesRemaining--;
             if (_peakCallsFramesRemaining == 0)
             {
+                // Log the expiring peak for optimization reference
+                Diagnostics::Logging::info("RoutingMetrics: Peak Calls/frame expired - {:.1f} calls/frame", _peakCalls);
                 _peakCalls = _rollingAverageCalls;
             }
         }
