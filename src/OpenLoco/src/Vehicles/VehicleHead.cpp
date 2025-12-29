@@ -3915,19 +3915,29 @@ namespace OpenLoco::Vehicles
                     result.hasPath, result.routePoints.size());
                 if (result.hasPath && !result.routePoints.empty())
                 {
-                    auto& nextWaypoint = result.routePoints[0];
-                    int32_t wpDx = std::abs(initialTile.x - nextWaypoint.x);
-                    int32_t wpDy = std::abs(initialTile.y - nextWaypoint.y);
-                    int32_t distanceToWaypoint = wpDx + wpDy;
+                    // If we have multiple waypoints, use the second one (index 1) to avoid being "at" the first waypoint
+                    // Otherwise use the first waypoint
+                    size_t targetWaypointIdx = result.routePoints.size() > 1 ? 1 : 0;
                     
-                    // Only use if not too close to waypoint
-                    if (distanceToWaypoint > 2)
+                    if (targetWaypointIdx < result.routePoints.size())
                     {
+                        auto& targetWaypoint = result.routePoints[targetWaypointIdx];
+                        
+                        // Calculate direction to target waypoint
+                        int32_t dx = targetWaypoint.x - initialTile.x;
+                        int32_t dy = targetWaypoint.y - initialTile.y;
+                        
+                        uint8_t direction;
+                        if (std::abs(dx) > std::abs(dy))
+                            direction = dx > 0 ? 1 : 3; // East or West
+                        else
+                            direction = dy > 0 ? 2 : 0; // South or North
+                        
                         static const World::Pos2 kDirectionOffsets[] = {
                             {0, -32}, {32, 0}, {0, 32}, {-32, 0}
                         };
                         World::Pos2 currentPos2D(head.position.x, head.position.y);
-                        auto targetPos = currentPos2D + kDirectionOffsets[result.direction & 3];
+                        auto targetPos = currentPos2D + kDirectionOffsets[direction & 3];
                         
                         // Validate target is water
                         auto targetTile = toTileSpace(targetPos);
@@ -3935,7 +3945,8 @@ namespace OpenLoco::Vehicles
                         auto* surface = tile.surface();
                         if (surface != nullptr && surface->water() == waterMicroZ)
                         {
-                            Diagnostics::Logging::verbose("Using waypoint path! Direction={}", result.direction);
+                            Diagnostics::Logging::verbose("Using waypoint path! Target waypoint index={}, direction={}", 
+                                targetWaypointIdx, direction);
                             return WaterPathingResult(targetPos);
                         }
                         else
@@ -3945,7 +3956,7 @@ namespace OpenLoco::Vehicles
                     }
                     else
                     {
-                        Diagnostics::Logging::verbose("Waypoint path rejected: too close to waypoint (distance={})", distanceToWaypoint);
+                        Diagnostics::Logging::verbose("Waypoint path rejected: all waypoints too close");
                     }
                 }
             }
