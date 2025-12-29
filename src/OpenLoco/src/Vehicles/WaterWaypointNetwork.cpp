@@ -2,6 +2,7 @@
 #include "Map/TileManager.h"
 #include "Map/SurfaceElement.h"
 #include "RoutingMetrics.h"
+#include <OpenLoco/Diagnostics/Logging.h>
 #include <algorithm>
 #include <queue>
 
@@ -244,6 +245,9 @@ namespace OpenLoco::Vehicles
             extractWaypoints();
             buildConnections();
             buildWaterMassGroups();
+
+            Diagnostics::Logging::info("WaterWaypointNetwork: Initialized with {} waypoints, {} groups", 
+                _waypoints.size(), _waterMassGroups.size());
 
             _initialized = true;
             _dirty = false;

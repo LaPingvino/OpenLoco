@@ -4,6 +4,7 @@
 #include "RoutingMetrics.h"
 #include "Orders.h"
 #include "World/StationManager.h"
+#include <OpenLoco/Diagnostics/Logging.h>
 #include <algorithm>
 #include <queue>
 #include <unordered_map>
@@ -53,7 +54,11 @@ namespace OpenLoco::Vehicles
             uint16_t targetWaypointIdx = WaterWaypointNetwork::findNearestWaypoint(targetPos, waterLevel);
 
             if (startWaypointIdx == 0xFFFF || targetWaypointIdx == 0xFFFF)
+            {
+                Diagnostics::Logging::verbose("WaypointPathfinding: No waypoints found (start={}, target={})", 
+                    startWaypointIdx, targetWaypointIdx);
                 return result;
+            }
 
             auto* startWaypoint = WaterWaypointNetwork::getWaypoint(startWaypointIdx);
             auto* targetWaypoint = WaterWaypointNetwork::getWaypoint(targetWaypointIdx);
@@ -63,7 +68,14 @@ namespace OpenLoco::Vehicles
 
             // Check if both waypoints are in the same water mass group
             if (startWaypoint->groupId != targetWaypoint->groupId)
+            {
+                Diagnostics::Logging::verbose("WaypointPathfinding: Different water groups (start group={}, target group={})", 
+                    startWaypoint->groupId, targetWaypoint->groupId);
                 return result;
+            }
+
+            Diagnostics::Logging::verbose("WaypointPathfinding: A* from waypoint {} to {} (groups match: {})", 
+                startWaypointIdx, targetWaypointIdx, startWaypoint->groupId);
 
             result.startWaypoint = startWaypointIdx;
             result.targetWaypoint = targetWaypointIdx;
