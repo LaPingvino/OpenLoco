@@ -160,6 +160,7 @@ namespace OpenLoco::Config
         bool trainsReverseAtSignals = true;
         bool disableStationSizeLimit = false;
         bool showAiPlanningAsGhosts = false;
+        bool useWaypointPathfinding = false;
 
         bool usePreferredOwnerName = false;
         std::string preferredOwnerName;

@@ -352,6 +352,10 @@ set(OLOCO_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Vehicles/VehicleHead.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Vehicles/VehicleManager.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Vehicles/VehicleTail.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Vehicles/WaterWaypointNetwork.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Vehicles/WaterWaypointNetwork.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Vehicles/WaterWaypointPathfinding.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Vehicles/WaterWaypointPathfinding.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Viewport.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ViewportManager.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/World/CompanyAi/CompanyAi.cpp"
@@ -754,7 +758,7 @@ set(private_compile_definitions
     $<$<CXX_COMPILER_ID:MSVC>:${msvc_private_compile_definitions}>
 )
 
-loco_add_executable(OpenLoco 
+loco_add_executable(OpenLoco
     PRIVATE_FILES
         ${OLOCO_SOURCES}
         ${OLOCO_HEADERS}

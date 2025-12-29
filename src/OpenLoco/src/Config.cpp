@@ -171,6 +171,7 @@ namespace OpenLoco::Config
         _config.trainsReverseAtSignals = config["trainsReverseAtSignals"].as<bool>(false);
         _config.disableStationSizeLimit = config["disableStationSizeLimit"].as<bool>(false);
         _config.showAiPlanningAsGhosts = config["showAiPlanningAsGhosts"].as<bool>(false);
+        _config.useWaypointPathfinding = config["useWaypointPathfinding"].as<bool>(false);
 
         // Preferred owner
         _config.preferredOwnerName = config["preferredOwnerName"].as<std::string>("");
@@ -298,6 +299,7 @@ namespace OpenLoco::Config
         node["trainsReverseAtSignals"] = _config.trainsReverseAtSignals;
         node["disableStationSizeLimit"] = _config.disableStationSizeLimit;
         node["showAiPlanningAsGhosts"] = _config.showAiPlanningAsGhosts;
+        node["useWaypointPathfinding"] = _config.useWaypointPathfinding;
 
         // Preferred owner
         node["preferredOwnerName"] = _config.preferredOwnerName;

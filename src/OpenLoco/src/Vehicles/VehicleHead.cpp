@@ -48,6 +48,7 @@
 #include "VehicleTail.h"
 #include "ViewportManager.h"
 #include "World/CompanyManager.h"
+#include "WaterWaypointPathfinding.h"
 #include "World/CompanyRecords.h"
 #include "World/IndustryManager.h"
 #include "World/StationManager.h"
@@ -3850,6 +3851,91 @@ namespace OpenLoco::Vehicles
 
         const auto initialTile = toTileSpace(head.position);
         const auto waterMicroZ = veh2.position.z / World::kMicroZStep;
+
+        // Emergency: if we're on land, navigate back to water immediately
+        auto currentTile = TileManager::get(initialTile);
+        auto* currentSurface = currentTile.surface();
+        if (currentSurface != nullptr && currentSurface->water() != waterMicroZ)
+        {
+            // We're on land! Find nearest water tile
+            uint8_t bestDirection = 0xFF;
+            
+            static const World::TilePos2 kSearchDirections[] = {
+                {0, -1}, {1, 0}, {0, 1}, {-1, 0},
+                {1, -1}, {1, 1}, {-1, 1}, {-1, -1}
+            };
+            
+            for (int32_t radius = 1; radius <= 10 && bestDirection == 0xFF; ++radius)
+            {
+                for (const auto& dir : kSearchDirections)
+                {
+                    World::TilePos2 checkPos = initialTile + (dir * radius);
+                    auto checkTile = TileManager::get(checkPos);
+                    auto* checkSurface = checkTile.surface();
+                    
+                    if (checkSurface != nullptr && checkSurface->water() == waterMicroZ)
+                    {
+                        int32_t dx = checkPos.x - initialTile.x;
+                        int32_t dy = checkPos.y - initialTile.y;
+                        
+                        if (std::abs(dx) > std::abs(dy))
+                            bestDirection = dx > 0 ? 1 : 3;
+                        else
+                            bestDirection = dy > 0 ? 2 : 0;
+                        break;
+                    }
+                }
+            }
+            
+            if (bestDirection != 0xFF)
+            {
+                static const World::Pos2 kDirectionOffsets[] = {
+                    {0, -32}, {32, 0}, {0, 32}, {-32, 0}
+                };
+                World::Pos2 currentPos2D(head.position.x, head.position.y);
+                auto targetPos = currentPos2D + kDirectionOffsets[bestDirection & 3];
+                return WaterPathingResult(targetPos);
+            }
+        }
+
+        // Use waypoint pathfinding if enabled and not too close to destination
+        if (Config::get().useWaypointPathfinding)
+        {
+            int32_t dx = std::abs(initialTile.x - targetOrderPos.x);
+            int32_t dy = std::abs(initialTile.y - targetOrderPos.y);
+            int32_t distanceToTarget = dx + dy;
+            
+            if (distanceToTarget > 15)
+            {
+                auto result = WaterWaypointPathfinding::waypointBasedPathfind(head, targetOrderPos, waterMicroZ);
+                if (result.hasPath && !result.routePoints.empty())
+                {
+                    auto& nextWaypoint = result.routePoints[0];
+                    int32_t wpDx = std::abs(initialTile.x - nextWaypoint.x);
+                    int32_t wpDy = std::abs(initialTile.y - nextWaypoint.y);
+                    int32_t distanceToWaypoint = wpDx + wpDy;
+                    
+                    // Only use if not too close to waypoint
+                    if (distanceToWaypoint > 2)
+                    {
+                        static const World::Pos2 kDirectionOffsets[] = {
+                            {0, -32}, {32, 0}, {0, 32}, {-32, 0}
+                        };
+                        World::Pos2 currentPos2D(head.position.x, head.position.y);
+                        auto targetPos = currentPos2D + kDirectionOffsets[result.direction & 3];
+                        
+                        // Validate target is water
+                        auto targetTile = toTileSpace(targetPos);
+                        auto tile = TileManager::get(targetTile);
+                        auto* surface = tile.surface();
+                        if (surface != nullptr && surface->water() == waterMicroZ)
+                        {
+                            return WaterPathingResult(targetPos);
+                        }
+                    }
+                }
+            }
+        }
 
         PathFindingResult bestResult{ std::numeric_limits<uint16_t>::max(), std::numeric_limits<uint8_t>::max() };
         uint8_t bestResultDirection = 0xFFU;

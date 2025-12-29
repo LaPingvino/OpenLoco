@@ -2448,3 +2448,7 @@ strings:
   2393: 'Gradient (default)'
   2394: 'Solid colour'
   2395: 'Translucent colour'
+  3000: "Show routing metrics (debug)"
+  3001: "{SMALLFONT}{COLOUR BLACK}Shows ship pathfinding performance metrics at the top of the screen."
+  3002: "Use waypoint pathfinding (debug)"
+  3003: "{SMALLFONT}{COLOUR BLACK}Uses A* pathfinding over coastal waypoint network instead of recursive tile search for ships."
