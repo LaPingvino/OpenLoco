@@ -3925,35 +3925,51 @@ namespace OpenLoco::Vehicles
                     {
                         auto& targetWaypoint = result.routePoints[targetWaypointIdx];
                         
-                        // Calculate direction to target waypoint
-                        int32_t dx = targetWaypoint.x - initialTile.x;
-                        int32_t dy = targetWaypoint.y - initialTile.y;
-                        
-                        uint8_t direction;
-                        if (std::abs(dx) > std::abs(dy))
-                            direction = dx > 0 ? 1 : 3; // East or West
-                        else
-                            direction = dy > 0 ? 2 : 0; // South or North
-                        
+                        // Try all 4 cardinal directions and pick the one that:
+                        // 1. Is water
+                        // 2. Gets us closest to the target waypoint
                         static const World::Pos2 kDirectionOffsets[] = {
                             {0, -32}, {32, 0}, {0, 32}, {-32, 0}
                         };
-                        World::Pos2 currentPos2D(head.position.x, head.position.y);
-                        auto targetPos = currentPos2D + kDirectionOffsets[direction & 3];
                         
-                        // Validate target is water
-                        auto targetTile = toTileSpace(targetPos);
-                        auto tile = TileManager::get(targetTile);
-                        auto* surface = tile.surface();
-                        if (surface != nullptr && surface->water() == waterMicroZ)
+                        World::Pos2 currentPos2D(head.position.x, head.position.y);
+                        int32_t bestDistance = std::numeric_limits<int32_t>::max();
+                        uint8_t bestDirection = 0xFF;
+                        World::Pos2 bestTargetPos;
+                        
+                        for (uint8_t dir = 0; dir < 4; ++dir)
+                        {
+                            auto candidatePos = currentPos2D + kDirectionOffsets[dir];
+                            auto candidateTile = toTileSpace(candidatePos);
+                            
+                            // Check if it's water
+                            auto tile = TileManager::get(candidateTile);
+                            auto* surface = tile.surface();
+                            if (surface == nullptr || surface->water() != waterMicroZ)
+                                continue;
+                            
+                            // Calculate distance to target waypoint
+                            int32_t dx = std::abs(candidateTile.x - targetWaypoint.x);
+                            int32_t dy = std::abs(candidateTile.y - targetWaypoint.y);
+                            int32_t distance = dx + dy;
+                            
+                            if (distance < bestDistance)
+                            {
+                                bestDistance = distance;
+                                bestDirection = dir;
+                                bestTargetPos = candidatePos;
+                            }
+                        }
+                        
+                        if (bestDirection != 0xFF)
                         {
                             Diagnostics::Logging::verbose("Using waypoint path! Target waypoint index={}, direction={}", 
-                                targetWaypointIdx, direction);
-                            return WaterPathingResult(targetPos);
+                                targetWaypointIdx, bestDirection);
+                            return WaterPathingResult(bestTargetPos);
                         }
                         else
                         {
-                            Diagnostics::Logging::verbose("Waypoint path rejected: target not water");
+                            Diagnostics::Logging::verbose("Waypoint path rejected: no valid water direction toward waypoint");
                         }
                     }
                     else
