@@ -69,6 +69,7 @@
 #include "Ui/WindowManager.h"
 #include "Vehicles/Vehicle.h"
 #include "Vehicles/VehicleManager.h"
+#include "Vehicles/RoutingMetrics.h"
 #include "ViewportManager.h"
 #include "World/CompanyManager.h"
 #include "World/IndustryManager.h"
@@ -403,6 +404,9 @@ namespace OpenLoco
                     sub_431695(var_F253A0);
                 }
             }
+
+            // Mark end of frame for routing metrics
+            Vehicles::RoutingMetrics::frameEnd();
         }
         catch (GameException)
         {

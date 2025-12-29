@@ -36,7 +36,7 @@ namespace OpenLoco::Vehicles
 
         WaypointPathResult waypointBasedPathfind(const VehicleHead& head, World::TilePos2 targetPos, World::MicroZ waterLevel)
         {
-            auto ripfTracker = RoutingMetrics::trackRIPF();
+            uint32_t astarIterations = 0;
 
             WaypointPathResult result;
             result.hasPath = false;
@@ -84,6 +84,7 @@ namespace OpenLoco::Vehicles
 
             while (!openSet.empty())
             {
+                astarIterations++;
                 AStarNode current = openSet.top();
                 openSet.pop();
 
@@ -129,6 +130,11 @@ namespace OpenLoco::Vehicles
 
                     result.hasPath = true;
                     result.pathCost = current.gCost;
+                    result.startWaypoint = startWaypointIdx;
+                    result.targetWaypoint = targetWaypointIdx;
+                    
+                    // Record RIPF for waypoint pathfinding
+                    RoutingMetrics::recordWaterPathfindCall(astarIterations);
                     return result;
                 }
 
@@ -165,6 +171,8 @@ namespace OpenLoco::Vehicles
                 }
             }
 
+            // Record RIPF for waypoint pathfinding (no path found case)
+            RoutingMetrics::recordWaterPathfindCall(astarIterations);
             return result;
         }
     }

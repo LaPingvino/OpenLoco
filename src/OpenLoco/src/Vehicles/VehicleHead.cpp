@@ -48,6 +48,7 @@
 #include "VehicleTail.h"
 #include "ViewportManager.h"
 #include "World/CompanyManager.h"
+#include "RoutingMetrics.h"
 #include "WaterWaypointPathfinding.h"
 #include "World/CompanyRecords.h"
 #include "World/IndustryManager.h"
@@ -3751,8 +3752,9 @@ namespace OpenLoco::Vehicles
     };
 
     // 0x00428237
-    static PathFindingResult waterPathfindToTarget(const World::TilePos2 tilePos, const MicroZ waterMicroZ, const World::TilePos2 targetOrderPos, const NearbyBoats& nearbyVehicles, uint8_t cost, const PathFindingResult& bestResult)
+    static PathFindingResult waterPathfindToTarget(const World::TilePos2 tilePos, const MicroZ waterMicroZ, const World::TilePos2 targetOrderPos, const NearbyBoats& nearbyVehicles, uint8_t cost, const PathFindingResult& bestResult, uint32_t& callCount)
     {
+        callCount++;
         PathFindingResult result = bestResult;
         if (!validCoords(tilePos))
         {
@@ -3802,7 +3804,7 @@ namespace OpenLoco::Vehicles
             cost++;
             for (auto i = 0U; i < 4; ++i)
             {
-                result = waterPathfindToTarget(tilePos + toTileSpace(kRotationOffset[i]), waterMicroZ, targetOrderPos, nearbyVehicles, cost, result);
+                result = waterPathfindToTarget(tilePos + toTileSpace(kRotationOffset[i]), waterMicroZ, targetOrderPos, nearbyVehicles, cost, result, callCount);
             }
         }
         return result;
@@ -3939,17 +3941,23 @@ namespace OpenLoco::Vehicles
 
         PathFindingResult bestResult{ std::numeric_limits<uint16_t>::max(), std::numeric_limits<uint8_t>::max() };
         uint8_t bestResultDirection = 0xFFU;
+        uint32_t totalCallCount = 0;
         for (auto i = 0U; i < 4; ++i)
         {
             const auto tilePos = initialTile + toTileSpace(kRotationOffset[i]);
             PathFindingResult initResult{ std::numeric_limits<uint16_t>::max(), std::numeric_limits<uint8_t>::max() };
-            const auto pathResult = waterPathfindToTarget(tilePos, waterMicroZ, targetOrderPos, nearbyVehicles, 0, initResult);
+            uint32_t callCount = 0;
+            const auto pathResult = waterPathfindToTarget(tilePos, waterMicroZ, targetOrderPos, nearbyVehicles, 0, initResult, callCount);
+            totalCallCount += callCount;
             if (pathResult != initResult && (pathResult < bestResult || (pathResult == bestResult && i == curRotation)))
             {
                 bestResult = pathResult;
                 bestResultDirection = i;
             }
         }
+
+        // Record RIPF metrics for traditional pathfinding
+        RoutingMetrics::recordWaterPathfindCall(totalCallCount);
 
         if (bestResultDirection == 0xFF)
         {

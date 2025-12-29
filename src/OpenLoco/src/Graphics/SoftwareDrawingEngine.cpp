@@ -5,6 +5,7 @@
 #include "RenderTarget.h"
 #include "Ui.h"
 #include "Ui/WindowManager.h"
+#include "Vehicles/RoutingMetrics.h"
 
 #include <SDL2/SDL.h>
 #include <algorithm>
@@ -261,6 +262,9 @@ namespace OpenLoco::Gfx
         {
             Gfx::drawFPS(_ctx);
         }
+
+        // Draw routing metrics.
+        Vehicles::RoutingMetrics::drawMetrics(_ctx);
     }
 
     void SoftwareDrawingEngine::renderDirtyRegions()

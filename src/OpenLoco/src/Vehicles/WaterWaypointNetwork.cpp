@@ -239,8 +239,8 @@ namespace OpenLoco::Vehicles
 
         void initialize()
         {
-            auto ripfTracker = RoutingMetrics::trackRIPF();
-
+            // Note: Waypoint network initialization doesn't use recursive pathfinding,
+            // so no RIPF tracking needed here
             extractWaypoints();
             buildConnections();
             buildWaterMassGroups();
