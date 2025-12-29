@@ -113,6 +113,7 @@ namespace OpenLoco::Config
         // Display
         _config.scaleFactor = config["scale_factor"].as<float>(1.0f);
         _config.showFPS = config["showFPS"].as<bool>(false);
+        _config.showRoutingMetrics = config["showRoutingMetrics"].as<bool>(false);
         _config.uncapFPS = config["uncapFPS"].as<bool>(false);
 
         // Rendering
@@ -252,6 +253,7 @@ namespace OpenLoco::Config
         // Display
         node["scale_factor"] = _config.scaleFactor;
         node["showFPS"] = _config.showFPS;
+        node["showRoutingMetrics"] = _config.showRoutingMetrics;
         node["uncapFPS"] = _config.uncapFPS;
 
         // Rendering

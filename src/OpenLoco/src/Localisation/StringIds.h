@@ -2108,6 +2108,12 @@ namespace OpenLoco::StringIds
     constexpr StringId windowFrameStyleSolid = 2394;
     constexpr StringId windowFrameStyleTranslucent = 2395;
 
+    // Debug options (3000 range)
+    constexpr StringId option_show_routing_metrics = 3000;
+    constexpr StringId option_show_routing_metrics_tooltip = 3001;
+    constexpr StringId option_use_waypoint_pathfinding = 3002;
+    constexpr StringId option_use_waypoint_pathfinding_tooltip = 3003;
+
     constexpr StringId temporary_object_load_str_0 = 8192;
     constexpr StringId temporary_object_load_str_1 = 8193;
     constexpr StringId temporary_object_load_str_2 = 8194;

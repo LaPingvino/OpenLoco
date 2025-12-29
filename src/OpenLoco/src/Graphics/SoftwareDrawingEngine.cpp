@@ -264,7 +264,10 @@ namespace OpenLoco::Gfx
         }
 
         // Draw routing metrics.
-        Vehicles::RoutingMetrics::drawMetrics(_ctx);
+        if (Config::get().showRoutingMetrics)
+        {
+            Vehicles::RoutingMetrics::drawMetrics(_ctx);
+        }
     }
 
     void SoftwareDrawingEngine::renderDirtyRegions()
