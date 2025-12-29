@@ -19,12 +19,14 @@ namespace OpenLoco::Vehicles
         static void extractWaypoints()
         {
             _waypoints.clear();
+            uint32_t operationCount = 0;
 
             // Scan all tiles for water/land boundaries
             for (int16_t y = 0; y < World::kMapRows; ++y)
             {
                 for (int16_t x = 0; x < World::kMapColumns; ++x)
                 {
+                    operationCount++; // Count each tile check
                     World::TilePos2 tilePos(x, y);
                     auto tile = World::TileManager::get(tilePos);
                     auto* surface = tile.surface();
@@ -32,6 +34,7 @@ namespace OpenLoco::Vehicles
                     if (surface == nullptr || surface->water() == 0)
                         continue;
 
+                    operationCount++; // Water tile found, checking neighbors
                     // This is a water tile - check if it's near land
                     bool nearLand = false;
                     for (int8_t dy = -1; dy <= 1 && !nearLand; ++dy)
@@ -172,6 +175,7 @@ namespace OpenLoco::Vehicles
                             }
                         }
 
+                        operationCount++; // Waypoint placement computation
                         Waypoint wp;
                         wp.pos = waypointPos;
                         wp.waterLevel = surface->water();
@@ -180,6 +184,9 @@ namespace OpenLoco::Vehicles
                     }
                 }
             }
+            
+            // Record the cost of scanning the entire map for waypoints
+            RoutingMetrics::recordWaterPathfindCall(operationCount);
         }
 
         static bool lineOfSightWater(World::TilePos2 from, World::TilePos2 to, World::MicroZ waterLevel)
@@ -313,6 +320,8 @@ namespace OpenLoco::Vehicles
         static void buildConnections()
         {
             const int32_t kMaxConnectionDistance = 32;
+            uint32_t totalOperations = 0;
+            uint32_t lineOfSightChecks = 0;
             uint32_t totalAStarIterations = 0;
 
             for (size_t i = 0; i < _waypoints.size(); ++i)
@@ -325,6 +334,7 @@ namespace OpenLoco::Vehicles
                     if (i == j)
                         continue;
 
+                    totalOperations++; // Count waypoint pair check
                     auto& other = _waypoints[j];
                     int32_t dx = std::abs(wp.pos.x - other.pos.x);
                     int32_t dy = std::abs(wp.pos.y - other.pos.y);
@@ -333,6 +343,7 @@ namespace OpenLoco::Vehicles
                     if (distance <= kMaxConnectionDistance && wp.waterLevel == other.waterLevel)
                     {
                         // First try fast line-of-sight check
+                        lineOfSightChecks++;
                         if (lineOfSightWater(wp.pos, other.pos, wp.waterLevel))
                         {
                             wp.connections.push_back(static_cast<uint16_t>(j));
@@ -351,11 +362,17 @@ namespace OpenLoco::Vehicles
                 }
             }
             
-            // Record the A* iterations used during connection building for fair RIPF comparison
-            if (totalAStarIterations > 0)
+            // Record all operations: basic checks + line-of-sight distance checks + A* iterations
+            // Line-of-sight checks are cheap but count them as distance to target
+            uint32_t lineOfSightCost = 0;
+            for (size_t i = 0; i < lineOfSightChecks; ++i)
             {
-                RoutingMetrics::recordWaterPathfindCall(totalAStarIterations);
+                // Average line-of-sight is ~16 tiles (half of max 32 distance)
+                lineOfSightCost += 16;
             }
+            
+            uint32_t totalCost = totalOperations + lineOfSightCost + totalAStarIterations;
+            RoutingMetrics::recordWaterPathfindCall(totalCost);
         }
 
         static void buildWaterMassGroups()
@@ -365,11 +382,13 @@ namespace OpenLoco::Vehicles
             if (_waypoints.empty())
                 return;
 
+            uint32_t operationCount = 0;
             std::vector<bool> visited(_waypoints.size(), false);
             uint16_t currentGroupId = 0;
 
             for (size_t i = 0; i < _waypoints.size(); ++i)
             {
+                operationCount++; // Check each waypoint
                 if (visited[i])
                     continue;
 
@@ -385,6 +404,7 @@ namespace OpenLoco::Vehicles
 
                 while (!toVisit.empty())
                 {
+                    operationCount++; // BFS iteration
                     uint16_t current = toVisit.front();
                     toVisit.pop();
 
@@ -397,6 +417,7 @@ namespace OpenLoco::Vehicles
 
                     for (uint16_t neighborIdx : _waypoints[current].connections)
                     {
+                        operationCount++; // Check each connection
                         if (!visited[neighborIdx])
                         {
                             visited[neighborIdx] = true;
@@ -416,15 +437,18 @@ namespace OpenLoco::Vehicles
                 _waterMassGroups.push_back(group);
                 currentGroupId++;
             }
+            
+            // Record the cost of grouping waypoints via BFS
+            RoutingMetrics::recordWaterPathfindCall(operationCount);
         }
 
         void initialize()
         {
-            // Note: Waypoint network initialization doesn't use recursive pathfinding,
-            // so no RIPF tracking needed here
-            extractWaypoints();
-            buildConnections();
-            buildWaterMassGroups();
+            // All initialization steps track their operation counts for RIPF metrics
+            // This gives a complete picture of the initialization cost
+            extractWaypoints();      // Tracks map scanning
+            buildConnections();      // Tracks line-of-sight checks and tile A* iterations
+            buildWaterMassGroups();  // Tracks BFS grouping operations
 
             Diagnostics::Logging::info("WaterWaypointNetwork: Initialized with {} waypoints, {} groups", 
                 _waypoints.size(), _waterMassGroups.size());
