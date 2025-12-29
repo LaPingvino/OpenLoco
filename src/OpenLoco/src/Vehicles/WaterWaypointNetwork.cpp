@@ -57,7 +57,7 @@ namespace OpenLoco::Vehicles
 
                     if (nearLand)
                     {
-                        // Try to offset 1 tile into open water if possible
+                        // Try to offset 4 tiles into open water for better ship clearance
                         World::TilePos2 waypointPos = tilePos;
                         
                         // Check all 4 directions for deeper water
@@ -67,38 +67,53 @@ namespace OpenLoco::Vehicles
                         
                         for (const auto& dir : kDirections)
                         {
-                            World::TilePos2 offsetPos = tilePos + dir;
-                            if (!World::validCoords(offsetPos))
-                                continue;
-
-                            auto offsetTile = World::TileManager::get(offsetPos);
-                            auto* offsetSurface = offsetTile.surface();
-
-                            if (offsetSurface != nullptr && offsetSurface->water() == surface->water())
+                            // Try to go 4 tiles out from coast
+                            bool foundGoodSpot = false;
+                            for (int32_t offset = 4; offset >= 1 && !foundGoodSpot; --offset)
                             {
-                                // Check if this tile is surrounded by more water
-                                bool moreOpen = true;
-                                for (const auto& checkDir : kDirections)
-                                {
-                                    World::TilePos2 checkPos = offsetPos + checkDir;
-                                    if (!World::validCoords(checkPos))
-                                        continue;
+                                World::TilePos2 offsetPos = tilePos + (dir * offset);
+                                if (!World::validCoords(offsetPos))
+                                    continue;
 
-                                    auto checkTile = World::TileManager::get(checkPos);
-                                    auto* checkSurface = checkTile.surface();
-                                    if (checkSurface == nullptr || checkSurface->water() == 0)
+                                auto offsetTile = World::TileManager::get(offsetPos);
+                                auto* offsetSurface = offsetTile.surface();
+
+                                if (offsetSurface == nullptr || offsetSurface->water() != surface->water())
+                                    continue;
+
+                                // Check if this tile has good water clearance (at least 2 tiles in all directions)
+                                bool hasGoodClearance = true;
+                                for (int8_t checkDy = -2; checkDy <= 2 && hasGoodClearance; ++checkDy)
+                                {
+                                    for (int8_t checkDx = -2; checkDx <= 2; ++checkDx)
                                     {
-                                        moreOpen = false;
-                                        break;
+                                        if (checkDx == 0 && checkDy == 0)
+                                            continue;
+
+                                        World::TilePos2 checkPos = offsetPos + World::TilePos2{checkDx, checkDy};
+                                        if (!World::validCoords(checkPos))
+                                            continue;
+
+                                        auto checkTile = World::TileManager::get(checkPos);
+                                        auto* checkSurface = checkTile.surface();
+                                        if (checkSurface == nullptr || checkSurface->water() != surface->water())
+                                        {
+                                            hasGoodClearance = false;
+                                            break;
+                                        }
                                     }
                                 }
 
-                                if (moreOpen)
+                                if (hasGoodClearance)
                                 {
                                     waypointPos = offsetPos;
+                                    foundGoodSpot = true;
                                     break;
                                 }
                             }
+                            
+                            if (foundGoodSpot)
+                                break;
                         }
 
                         Waypoint wp;

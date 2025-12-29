@@ -3908,7 +3908,9 @@ namespace OpenLoco::Vehicles
             int32_t dy = std::abs(initialTile.y - targetOrderPos.y);
             int32_t distanceToTarget = dx + dy;
             
-            if (distanceToTarget > 15)
+            // Use waypoint pathfinding when more than 4 tiles from target
+            // Within 4 tiles, use traditional pathfinding for final approach to port
+            if (distanceToTarget > 4)
             {
                 auto result = WaterWaypointPathfinding::waypointBasedPathfind(head, targetOrderPos, waterMicroZ);
                 Diagnostics::Logging::verbose("Waypoint path result: hasPath={}, routePoints={}", 
