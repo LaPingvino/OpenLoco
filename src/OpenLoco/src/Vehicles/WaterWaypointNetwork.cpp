@@ -5,6 +5,7 @@
 #include <OpenLoco/Diagnostics/Logging.h>
 #include <algorithm>
 #include <queue>
+#include <unordered_map>
 
 namespace OpenLoco::Vehicles
 {
@@ -217,10 +218,102 @@ namespace OpenLoco::Vehicles
 
             return true;
         }
+        
+        // Tile-by-tile A* pathfinding to check if two waypoints are connected through narrow channels
+        static bool tileAStarConnectable(World::TilePos2 from, World::TilePos2 to, World::MicroZ waterLevel, uint32_t& iterations)
+        {
+            iterations = 0;
+            
+            // Maximum search depth to prevent excessive computation
+            const uint32_t kMaxIterations = 200;
+            
+            struct AStarNode
+            {
+                World::TilePos2 pos;
+                uint16_t gCost;
+                uint16_t hCost;
+                uint16_t fCost() const { return gCost + hCost; }
+                
+                bool operator>(const AStarNode& other) const
+                {
+                    return fCost() > other.fCost();
+                }
+            };
+            
+            auto manhattanDistance = [](World::TilePos2 a, World::TilePos2 b) -> uint16_t {
+                int32_t dx = std::abs(a.x - b.x);
+                int32_t dy = std::abs(a.y - b.y);
+                return static_cast<uint16_t>(dx + dy);
+            };
+            
+            std::priority_queue<AStarNode, std::vector<AStarNode>, std::greater<AStarNode>> openSet;
+            std::unordered_map<uint32_t, uint16_t> gScores;
+            
+            auto encodePos = [](World::TilePos2 pos) -> uint32_t {
+                return (static_cast<uint32_t>(pos.x) << 16) | static_cast<uint32_t>(pos.y);
+            };
+            
+            AStarNode startNode;
+            startNode.pos = from;
+            startNode.gCost = 0;
+            startNode.hCost = manhattanDistance(from, to);
+            
+            openSet.push(startNode);
+            gScores[encodePos(from)] = 0;
+            
+            static const World::TilePos2 kDirections[] = {
+                {0, -1}, {1, 0}, {0, 1}, {-1, 0}
+            };
+            
+            while (!openSet.empty() && iterations < kMaxIterations)
+            {
+                iterations++;
+                AStarNode current = openSet.top();
+                openSet.pop();
+                
+                // Reached target?
+                if (current.pos.x == to.x && current.pos.y == to.y)
+                    return true;
+                
+                // Try all 4 directions
+                for (const auto& dir : kDirections)
+                {
+                    World::TilePos2 neighbor = current.pos + dir;
+                    
+                    if (!World::validCoords(neighbor))
+                        continue;
+                    
+                    auto tile = World::TileManager::get(neighbor);
+                    auto* surface = tile.surface();
+                    
+                    if (surface == nullptr || surface->water() != waterLevel)
+                        continue;
+                    
+                    uint16_t tentativeGCost = current.gCost + 1;
+                    uint32_t neighborKey = encodePos(neighbor);
+                    
+                    auto it = gScores.find(neighborKey);
+                    if (it == gScores.end() || tentativeGCost < it->second)
+                    {
+                        gScores[neighborKey] = tentativeGCost;
+                        
+                        AStarNode neighborNode;
+                        neighborNode.pos = neighbor;
+                        neighborNode.gCost = tentativeGCost;
+                        neighborNode.hCost = manhattanDistance(neighbor, to);
+                        
+                        openSet.push(neighborNode);
+                    }
+                }
+            }
+            
+            return false;
+        }
 
         static void buildConnections()
         {
             const int32_t kMaxConnectionDistance = 32;
+            uint32_t totalAStarIterations = 0;
 
             for (size_t i = 0; i < _waypoints.size(); ++i)
             {
@@ -239,12 +332,29 @@ namespace OpenLoco::Vehicles
 
                     if (distance <= kMaxConnectionDistance && wp.waterLevel == other.waterLevel)
                     {
+                        // First try fast line-of-sight check
                         if (lineOfSightWater(wp.pos, other.pos, wp.waterLevel))
                         {
                             wp.connections.push_back(static_cast<uint16_t>(j));
                         }
+                        else
+                        {
+                            // Line-of-sight failed, try tile-by-tile A* for narrow channels
+                            uint32_t iterations = 0;
+                            if (tileAStarConnectable(wp.pos, other.pos, wp.waterLevel, iterations))
+                            {
+                                wp.connections.push_back(static_cast<uint16_t>(j));
+                                totalAStarIterations += iterations;
+                            }
+                        }
                     }
                 }
+            }
+            
+            // Record the A* iterations used during connection building for fair RIPF comparison
+            if (totalAStarIterations > 0)
+            {
+                RoutingMetrics::recordWaterPathfindCall(totalAStarIterations);
             }
         }
 
