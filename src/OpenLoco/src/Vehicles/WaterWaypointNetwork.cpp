@@ -57,7 +57,6 @@ namespace OpenLoco::Vehicles
 
                     if (nearLand)
                     {
-                        // Try to offset 4 tiles into open water for better ship clearance
                         World::TilePos2 waypointPos = tilePos;
                         
                         // Check all 4 directions for deeper water
@@ -65,10 +64,10 @@ namespace OpenLoco::Vehicles
                             {0, -1}, {1, 0}, {0, 1}, {-1, 0}
                         };
                         
+                        // First, try to find a spot with 4 tiles clearance and 2-tile margin
+                        bool foundGoodSpot = false;
                         for (const auto& dir : kDirections)
                         {
-                            // Try to go 4 tiles out from coast
-                            bool foundGoodSpot = false;
                             for (int32_t offset = 4; offset >= 1 && !foundGoodSpot; --offset)
                             {
                                 World::TilePos2 offsetPos = tilePos + (dir * offset);
@@ -114,6 +113,62 @@ namespace OpenLoco::Vehicles
                             
                             if (foundGoodSpot)
                                 break;
+                        }
+                        
+                        // If we couldn't find ideal clearance, try to center in the waterway
+                        if (!foundGoodSpot)
+                        {
+                            // For each direction, measure how far we can go before hitting land
+                            int32_t distances[4] = {0, 0, 0, 0};
+                            
+                            for (int dir = 0; dir < 4; ++dir)
+                            {
+                                for (int32_t dist = 1; dist <= 10; ++dist)
+                                {
+                                    World::TilePos2 checkPos = tilePos + (kDirections[dir] * dist);
+                                    if (!World::validCoords(checkPos))
+                                        break;
+                                    
+                                    auto checkTile = World::TileManager::get(checkPos);
+                                    auto* checkSurface = checkTile.surface();
+                                    
+                                    if (checkSurface == nullptr || checkSurface->water() != surface->water())
+                                        break;
+                                    
+                                    distances[dir] = dist;
+                                }
+                            }
+                            
+                            // Find the direction with most water and move halfway in that direction
+                            int32_t bestDist = 0;
+                            int bestDir = -1;
+                            for (int dir = 0; dir < 4; ++dir)
+                            {
+                                if (distances[dir] > bestDist)
+                                {
+                                    bestDist = distances[dir];
+                                    bestDir = dir;
+                                }
+                            }
+                            
+                            // Move to center of the waterway (halfway to the farthest point)
+                            if (bestDir >= 0 && bestDist > 1)
+                            {
+                                int32_t centerOffset = bestDist / 2;
+                                if (centerOffset > 0)
+                                {
+                                    World::TilePos2 centerPos = tilePos + (kDirections[bestDir] * centerOffset);
+                                    if (World::validCoords(centerPos))
+                                    {
+                                        auto centerTile = World::TileManager::get(centerPos);
+                                        auto* centerSurface = centerTile.surface();
+                                        if (centerSurface != nullptr && centerSurface->water() == surface->water())
+                                        {
+                                            waypointPos = centerPos;
+                                        }
+                                    }
+                                }
+                            }
                         }
 
                         Waypoint wp;
