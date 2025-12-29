@@ -13,9 +13,19 @@ namespace OpenLoco::Vehicles
     static std::vector<WaterMassGroup> _waterMassGroups;
     static bool _initialized = false;
     static bool _dirty = true;
+    static std::unordered_map<uint32_t, std::vector<uint16_t>> _spatialGrid;
+    static const int32_t kMaxConnectionDistance = 32;
+    static const int32_t kCellSize = kMaxConnectionDistance;
 
     namespace WaterWaypointNetwork
     {
+        static uint32_t getCellKey(World::TilePos2 pos)
+        {
+            int32_t cellX = pos.x / kCellSize;
+            int32_t cellY = pos.y / kCellSize;
+            return (static_cast<uint32_t>(cellX) << 16) | static_cast<uint32_t>(cellY);
+        }
+        
         static void extractWaypoints()
         {
             _waypoints.clear();
@@ -317,62 +327,147 @@ namespace OpenLoco::Vehicles
             return false;
         }
 
-        static void buildConnections()
+        // Build spatial grid for fast neighbor lookups (called once during initialization)
+        static void buildSpatialGrid()
         {
-            const int32_t kMaxConnectionDistance = 32;
-            uint32_t totalOperations = 0;
+            _spatialGrid.clear();
+            
+            // Populate spatial grid
+            for (size_t i = 0; i < _waypoints.size(); ++i)
+            {
+                uint32_t cellKey = getCellKey(_waypoints[i].pos);
+                _spatialGrid[cellKey].push_back(static_cast<uint16_t>(i));
+            }
+        }
+        
+        // Phase 1: Build connections using only line-of-sight (fast)
+        static void buildLineOfSightConnections()
+        {
+            uint32_t operationCount = 0;
             uint32_t lineOfSightChecks = 0;
-            uint32_t totalAStarIterations = 0;
-
+            
             for (size_t i = 0; i < _waypoints.size(); ++i)
             {
                 auto& wp = _waypoints[i];
                 wp.connections.clear();
 
-                for (size_t j = 0; j < _waypoints.size(); ++j)
+                int32_t cellX = wp.pos.x / kCellSize;
+                int32_t cellY = wp.pos.y / kCellSize;
+                
+                // Check 3x3 grid of cells around this waypoint
+                for (int32_t dy = -1; dy <= 1; ++dy)
                 {
-                    if (i == j)
-                        continue;
-
-                    totalOperations++; // Count waypoint pair check
-                    auto& other = _waypoints[j];
-                    int32_t dx = std::abs(wp.pos.x - other.pos.x);
-                    int32_t dy = std::abs(wp.pos.y - other.pos.y);
-                    int32_t distance = dx + dy;
-
-                    if (distance <= kMaxConnectionDistance && wp.waterLevel == other.waterLevel)
+                    for (int32_t dx = -1; dx <= 1; ++dx)
                     {
-                        // First try fast line-of-sight check
-                        lineOfSightChecks++;
-                        if (lineOfSightWater(wp.pos, other.pos, wp.waterLevel))
+                        uint32_t cellKey = (static_cast<uint32_t>(cellX + dx) << 16) | static_cast<uint32_t>(cellY + dy);
+                        auto it = _spatialGrid.find(cellKey);
+                        if (it == _spatialGrid.end())
+                            continue;
+                        
+                        for (uint16_t j : it->second)
                         {
-                            wp.connections.push_back(static_cast<uint16_t>(j));
-                        }
-                        else
-                        {
-                            // Line-of-sight failed, try tile-by-tile A* for narrow channels
-                            uint32_t iterations = 0;
-                            if (tileAStarConnectable(wp.pos, other.pos, wp.waterLevel, iterations))
+                            if (i == j)
+                                continue;
+
+                            operationCount++; // Count waypoint pair check
+                            auto& other = _waypoints[j];
+                            int32_t distX = std::abs(wp.pos.x - other.pos.x);
+                            int32_t distY = std::abs(wp.pos.y - other.pos.y);
+                            int32_t distance = distX + distY;
+
+                            if (distance <= kMaxConnectionDistance && wp.waterLevel == other.waterLevel)
                             {
-                                wp.connections.push_back(static_cast<uint16_t>(j));
-                                totalAStarIterations += iterations;
+                                // Only line-of-sight in phase 1 (fast)
+                                lineOfSightChecks++;
+                                if (lineOfSightWater(wp.pos, other.pos, wp.waterLevel))
+                                {
+                                    wp.connections.push_back(static_cast<uint16_t>(j));
+                                }
                             }
                         }
                     }
                 }
             }
             
-            // Record all operations: basic checks + line-of-sight distance checks + A* iterations
-            // Line-of-sight checks are cheap but count them as distance to target
-            uint32_t lineOfSightCost = 0;
-            for (size_t i = 0; i < lineOfSightChecks; ++i)
+            // Record cost of line-of-sight connection building
+            uint32_t lineOfSightCost = lineOfSightChecks * 16; // Average ~16 tiles per check
+            RoutingMetrics::recordWaterPathfindCall(operationCount + lineOfSightCost);
+        }
+        
+        // Phase 2: Try to connect nearby groups using tile A* for narrow channels
+        static void connectNearbyGroups()
+        {
+            uint32_t totalAStarIterations = 0;
+            
+            // For each pair of adjacent groups, try to find a connecting channel
+            for (size_t groupA = 0; groupA < _waterMassGroups.size(); ++groupA)
             {
-                // Average line-of-sight is ~16 tiles (half of max 32 distance)
-                lineOfSightCost += 16;
+                for (size_t groupB = groupA + 1; groupB < _waterMassGroups.size(); ++groupB)
+                {
+                    auto& groupAData = _waterMassGroups[groupA];
+                    auto& groupBData = _waterMassGroups[groupB];
+                    
+                    // Check if group centers are close enough to potentially connect
+                    int32_t dx = std::abs(groupAData.centerPoint.x - groupBData.centerPoint.x) / World::kTileSize;
+                    int32_t dy = std::abs(groupAData.centerPoint.y - groupBData.centerPoint.y) / World::kTileSize;
+                    int32_t centerDistance = dx + dy;
+                    
+                    // Only try if groups are reasonably close (within 100 tiles)
+                    if (centerDistance > 100)
+                        continue;
+                    
+                    // Find closest waypoint pair between the two groups
+                    uint16_t bestWpA = 0xFFFF;
+                    uint16_t bestWpB = 0xFFFF;
+                    int32_t bestDistance = std::numeric_limits<int32_t>::max();
+                    
+                    for (uint16_t wpAIdx : groupAData.waypointIndices)
+                    {
+                        for (uint16_t wpBIdx : groupBData.waypointIndices)
+                        {
+                            auto& wpA = _waypoints[wpAIdx];
+                            auto& wpB = _waypoints[wpBIdx];
+                            
+                            int32_t dist = std::abs(wpA.pos.x - wpB.pos.x) + std::abs(wpA.pos.y - wpB.pos.y);
+                            if (dist < bestDistance && wpA.waterLevel == wpB.waterLevel)
+                            {
+                                bestDistance = dist;
+                                bestWpA = wpAIdx;
+                                bestWpB = wpBIdx;
+                            }
+                        }
+                    }
+                    
+                    // Try tile A* between closest waypoints if they're close enough
+                    if (bestWpA != 0xFFFF && bestWpB != 0xFFFF && bestDistance <= kMaxConnectionDistance * 2)
+                    {
+                        auto& wpA = _waypoints[bestWpA];
+                        auto& wpB = _waypoints[bestWpB];
+                        
+                        uint32_t iterations = 0;
+                        if (tileAStarConnectable(wpA.pos, wpB.pos, wpA.waterLevel, iterations))
+                        {
+                            // Found a connection! Add bidirectional edges
+                            wpA.connections.push_back(bestWpB);
+                            wpB.connections.push_back(bestWpA);
+                            totalAStarIterations += iterations;
+                            
+                            Diagnostics::Logging::verbose("WaterWaypointNetwork: Connected groups {} and {} via narrow channel (distance={})", 
+                                groupA, groupB, bestDistance);
+                        }
+                        else
+                        {
+                            totalAStarIterations += iterations;
+                        }
+                    }
+                }
             }
             
-            uint32_t totalCost = totalOperations + lineOfSightCost + totalAStarIterations;
-            RoutingMetrics::recordWaterPathfindCall(totalCost);
+            // Record tile A* cost
+            if (totalAStarIterations > 0)
+            {
+                RoutingMetrics::recordWaterPathfindCall(totalAStarIterations);
+            }
         }
 
         static void buildWaterMassGroups()
@@ -444,13 +539,30 @@ namespace OpenLoco::Vehicles
 
         void initialize()
         {
-            // All initialization steps track their operation counts for RIPF metrics
-            // This gives a complete picture of the initialization cost
-            extractWaypoints();      // Tracks map scanning
-            buildConnections();      // Tracks line-of-sight checks and tile A* iterations
-            buildWaterMassGroups();  // Tracks BFS grouping operations
+            // Three-phase initialization for waypoint network:
+            
+            // Phase 1: Extract waypoints from map (tracks tile scanning)
+            extractWaypoints();
+            
+            // Build spatial index for fast neighbor lookups
+            buildSpatialGrid();
+            
+            // Phase 2: Build connections using only fast line-of-sight checks
+            buildLineOfSightConnections();
+            
+            // Phase 3: Initial grouping based on line-of-sight connections
+            buildWaterMassGroups();
+            
+            Diagnostics::Logging::info("WaterWaypointNetwork: Initial grouping - {} waypoints, {} groups", 
+                _waypoints.size(), _waterMassGroups.size());
+            
+            // Phase 4: Try to connect nearby groups using tile A* for narrow channels
+            connectNearbyGroups();
+            
+            // Phase 5: Re-run grouping to merge newly connected groups
+            buildWaterMassGroups();
 
-            Diagnostics::Logging::info("WaterWaypointNetwork: Initialized with {} waypoints, {} groups", 
+            Diagnostics::Logging::info("WaterWaypointNetwork: Final grouping - {} waypoints, {} groups", 
                 _waypoints.size(), _waterMassGroups.size());
 
             _initialized = true;
