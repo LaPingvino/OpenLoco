@@ -50,6 +50,7 @@
 #include "World/CompanyManager.h"
 #include "RoutingMetrics.h"
 #include "WaterWaypointPathfinding.h"
+#include "WaterWaypointNetwork.h"
 #include "World/CompanyRecords.h"
 #include <OpenLoco/Diagnostics/Logging.h>
 #include "World/IndustryManager.h"
@@ -3811,6 +3812,15 @@ namespace OpenLoco::Vehicles
         return result;
     }
 
+    // Loop detection for waypoint pathfinding
+    struct WaypointLoopDetection
+    {
+        uint16_t waypoint1 = 0xFFFF;
+        uint16_t waypoint2 = 0xFFFF;
+        uint8_t loopCount = 0;
+    };
+    static std::unordered_map<EntityId, WaypointLoopDetection> _waypointLoopDetection;
+
     // 0x00427FC9
     static WaterPathingResult waterPathfind(const VehicleHead& head)
     {
@@ -3915,11 +3925,82 @@ namespace OpenLoco::Vehicles
                 auto result = WaterWaypointPathfinding::waypointBasedPathfind(head, targetOrderPos, waterMicroZ);
                 Diagnostics::Logging::verbose("Waypoint path result: hasPath={}, routePoints={}", 
                     result.hasPath, result.routePoints.size());
-                if (result.hasPath && !result.routePoints.empty())
+                    
+                // Check for waypoint loops and handle them
+                auto& loopDetection = _waypointLoopDetection[head.id];
+                bool useTraditionalPathfinding = false;
+                
+                if (result.hasPath && result.routePoints.size() >= 2)
                 {
-                    // If we have multiple waypoints, use the second one (index 1) to avoid being "at" the first waypoint
-                    // Otherwise use the first waypoint
-                    size_t targetWaypointIdx = result.routePoints.size() > 1 ? 1 : 0;
+                    uint16_t currentWp = result.startWaypoint;
+                    uint16_t nextWp = result.routePoints.size() > 1 ? result.startWaypoint + 1 : result.startWaypoint;
+                    
+                    // Detect if we're looping between two waypoints
+                    if ((loopDetection.waypoint1 == currentWp && loopDetection.waypoint2 == nextWp) ||
+                        (loopDetection.waypoint1 == nextWp && loopDetection.waypoint2 == currentWp))
+                    {
+                        loopDetection.loopCount++;
+                        
+                        if (loopDetection.loopCount >= 3)
+                        {
+                            Diagnostics::Logging::warn("WaypointPathfinding: Loop detected between waypoints {} and {} (count={})", 
+                                currentWp, nextWp, loopDetection.loopCount);
+                            
+                            // Try to fix the connection using tile A*
+                            if (WaterWaypointNetwork::tryConnectWaypoints(currentWp, nextWp))
+                            {
+                                Diagnostics::Logging::info("WaypointPathfinding: Successfully connected waypoints, retrying waypoint pathfinding");
+                                loopDetection.loopCount = 0; // Reset and retry with new connection
+                                // Don't set useTraditionalPathfinding, let it try waypoint pathfinding again
+                            }
+                            else
+                            {
+                                Diagnostics::Logging::warn("WaypointPathfinding: Could not connect waypoints, falling back to traditional pathfinding");
+                                useTraditionalPathfinding = true;
+                                loopDetection.loopCount = 0; // Reset after applying fix
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Different waypoints, reset detection
+                        loopDetection.waypoint1 = currentWp;
+                        loopDetection.waypoint2 = nextWp;
+                        loopDetection.loopCount = 1;
+                    }
+                }
+                
+                if (result.hasPath && !result.routePoints.empty() && !useTraditionalPathfinding)
+                {
+                    // Find the first waypoint that's far enough away (at least 3 tiles)
+                    // This prevents oscillating between very close waypoints
+                    size_t targetWaypointIdx = 0;
+                    const int32_t kMinWaypointDistance = 3;
+                    
+                    for (size_t i = 0; i < result.routePoints.size(); ++i)
+                    {
+                        auto& wp = result.routePoints[i];
+                        int32_t dx = std::abs(initialTile.x - wp.x);
+                        int32_t dy = std::abs(initialTile.y - wp.y);
+                        int32_t distance = dx + dy;
+                        
+                        if (distance >= kMinWaypointDistance)
+                        {
+                            targetWaypointIdx = i;
+                            break;
+                        }
+                    }
+                    
+                    // If all waypoints are too close, just use the last one (we're near destination)
+                    if (targetWaypointIdx == 0 && result.routePoints.size() > 1)
+                    {
+                        int32_t dx = std::abs(initialTile.x - result.routePoints[0].x);
+                        int32_t dy = std::abs(initialTile.y - result.routePoints[0].y);
+                        if (dx + dy < kMinWaypointDistance)
+                        {
+                            targetWaypointIdx = result.routePoints.size() - 1;
+                        }
+                    }
                     
                     if (targetWaypointIdx < result.routePoints.size())
                     {

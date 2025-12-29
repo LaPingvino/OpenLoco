@@ -394,81 +394,7 @@ namespace OpenLoco::Vehicles
             RoutingMetrics::recordWaterPathfindCall(operationCount + lineOfSightCost);
         }
         
-        // Phase 2: Try to connect nearby groups using tile A* for narrow channels
-        static void connectNearbyGroups()
-        {
-            uint32_t totalAStarIterations = 0;
-            
-            // For each pair of adjacent groups, try to find a connecting channel
-            for (size_t groupA = 0; groupA < _waterMassGroups.size(); ++groupA)
-            {
-                for (size_t groupB = groupA + 1; groupB < _waterMassGroups.size(); ++groupB)
-                {
-                    auto& groupAData = _waterMassGroups[groupA];
-                    auto& groupBData = _waterMassGroups[groupB];
-                    
-                    // Check if group centers are close enough to potentially connect
-                    int32_t dx = std::abs(groupAData.centerPoint.x - groupBData.centerPoint.x) / World::kTileSize;
-                    int32_t dy = std::abs(groupAData.centerPoint.y - groupBData.centerPoint.y) / World::kTileSize;
-                    int32_t centerDistance = dx + dy;
-                    
-                    // Only try if groups are reasonably close (within 100 tiles)
-                    if (centerDistance > 100)
-                        continue;
-                    
-                    // Find closest waypoint pair between the two groups
-                    uint16_t bestWpA = 0xFFFF;
-                    uint16_t bestWpB = 0xFFFF;
-                    int32_t bestDistance = std::numeric_limits<int32_t>::max();
-                    
-                    for (uint16_t wpAIdx : groupAData.waypointIndices)
-                    {
-                        for (uint16_t wpBIdx : groupBData.waypointIndices)
-                        {
-                            auto& wpA = _waypoints[wpAIdx];
-                            auto& wpB = _waypoints[wpBIdx];
-                            
-                            int32_t dist = std::abs(wpA.pos.x - wpB.pos.x) + std::abs(wpA.pos.y - wpB.pos.y);
-                            if (dist < bestDistance && wpA.waterLevel == wpB.waterLevel)
-                            {
-                                bestDistance = dist;
-                                bestWpA = wpAIdx;
-                                bestWpB = wpBIdx;
-                            }
-                        }
-                    }
-                    
-                    // Try tile A* between closest waypoints if they're close enough
-                    if (bestWpA != 0xFFFF && bestWpB != 0xFFFF && bestDistance <= kMaxConnectionDistance * 2)
-                    {
-                        auto& wpA = _waypoints[bestWpA];
-                        auto& wpB = _waypoints[bestWpB];
-                        
-                        uint32_t iterations = 0;
-                        if (tileAStarConnectable(wpA.pos, wpB.pos, wpA.waterLevel, iterations))
-                        {
-                            // Found a connection! Add bidirectional edges
-                            wpA.connections.push_back(bestWpB);
-                            wpB.connections.push_back(bestWpA);
-                            totalAStarIterations += iterations;
-                            
-                            Diagnostics::Logging::verbose("WaterWaypointNetwork: Connected groups {} and {} via narrow channel (distance={})", 
-                                groupA, groupB, bestDistance);
-                        }
-                        else
-                        {
-                            totalAStarIterations += iterations;
-                        }
-                    }
-                }
-            }
-            
-            // Record tile A* cost
-            if (totalAStarIterations > 0)
-            {
-                RoutingMetrics::recordWaterPathfindCall(totalAStarIterations);
-            }
-        }
+
 
         static void buildWaterMassGroups()
         {
@@ -553,16 +479,7 @@ namespace OpenLoco::Vehicles
             // Phase 3: Initial grouping based on line-of-sight connections
             buildWaterMassGroups();
             
-            Diagnostics::Logging::info("WaterWaypointNetwork: Initial grouping - {} waypoints, {} groups", 
-                _waypoints.size(), _waterMassGroups.size());
-            
-            // Phase 4: Try to connect nearby groups using tile A* for narrow channels
-            connectNearbyGroups();
-            
-            // Phase 5: Re-run grouping to merge newly connected groups
-            buildWaterMassGroups();
-
-            Diagnostics::Logging::info("WaterWaypointNetwork: Final grouping - {} waypoints, {} groups", 
+            Diagnostics::Logging::info("WaterWaypointNetwork: Initialized - {} waypoints, {} groups", 
                 _waypoints.size(), _waterMassGroups.size());
 
             _initialized = true;
@@ -619,6 +536,43 @@ namespace OpenLoco::Vehicles
                 return nullptr;
 
             return &_waypoints[index];
+        }
+        
+        // Try to connect two waypoints using tile-by-tile A* (for fixing loops on-demand)
+        bool tryConnectWaypoints(uint16_t waypointA, uint16_t waypointB)
+        {
+            ensureInitialized();
+            
+            if (waypointA >= _waypoints.size() || waypointB >= _waypoints.size())
+                return false;
+            
+            auto& wpA = _waypoints[waypointA];
+            auto& wpB = _waypoints[waypointB];
+            
+            // Check if already connected
+            for (uint16_t conn : wpA.connections)
+            {
+                if (conn == waypointB)
+                    return true; // Already connected
+            }
+            
+            // Try tile A* to find a path
+            uint32_t iterations = 0;
+            if (tileAStarConnectable(wpA.pos, wpB.pos, wpA.waterLevel, iterations))
+            {
+                // Found a connection! Add bidirectional edges
+                wpA.connections.push_back(waypointB);
+                wpB.connections.push_back(waypointA);
+                
+                RoutingMetrics::recordWaterPathfindCall(iterations);
+                
+                Diagnostics::Logging::info("WaterWaypointNetwork: Connected waypoints {} and {} via narrow channel (on-demand)", 
+                    waypointA, waypointB);
+                return true;
+            }
+            
+            RoutingMetrics::recordWaterPathfindCall(iterations);
+            return false;
         }
 
         const std::vector<Waypoint>& getAllWaypoints()

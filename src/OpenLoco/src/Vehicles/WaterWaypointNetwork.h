@@ -29,6 +29,7 @@ namespace OpenLoco::Vehicles
         
         uint16_t findNearestWaypoint(World::TilePos2 pos, World::MicroZ waterLevel);
         const Waypoint* getWaypoint(uint16_t index);
+        bool tryConnectWaypoints(uint16_t waypointA, uint16_t waypointB); // On-demand connection via tile A*
         const std::vector<Waypoint>& getAllWaypoints();
         const std::vector<WaterMassGroup>& getWaterMassGroups();
     }
