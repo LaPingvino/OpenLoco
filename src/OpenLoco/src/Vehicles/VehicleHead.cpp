@@ -3930,10 +3930,11 @@ namespace OpenLoco::Vehicles
                 auto& loopDetection = _waypointLoopDetection[head.id];
                 bool useTraditionalPathfinding = false;
                 
-                if (result.hasPath && result.routePoints.size() >= 2)
+                if (result.hasPath && result.waypointIndices.size() >= 2)
                 {
-                    uint16_t currentWp = result.startWaypoint;
-                    uint16_t nextWp = result.routePoints.size() > 1 ? result.startWaypoint + 1 : result.startWaypoint;
+                    // Use the first two waypoints in the path for loop detection
+                    uint16_t currentWp = result.waypointIndices[0];
+                    uint16_t nextWp = result.waypointIndices[1];
                     
                     // Detect if we're looping between two waypoints
                     if ((loopDetection.waypoint1 == currentWp && loopDetection.waypoint2 == nextWp) ||

@@ -117,13 +117,14 @@ namespace OpenLoco::Vehicles
 
                     std::reverse(waypointPath.begin(), waypointPath.end());
 
-                    // Convert waypoint path to tile positions
+                    // Convert waypoint path to tile positions and store indices
                     for (uint16_t wpIdx : waypointPath)
                     {
                         auto* wp = WaterWaypointNetwork::getWaypoint(wpIdx);
                         if (wp != nullptr)
                         {
                             result.routePoints.push_back(wp->pos);
+                            result.waypointIndices.push_back(wpIdx);
                         }
                     }
 

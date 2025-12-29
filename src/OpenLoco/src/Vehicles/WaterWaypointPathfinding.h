@@ -16,6 +16,7 @@ namespace OpenLoco::Vehicles
         uint16_t startWaypoint;
         uint16_t targetWaypoint;
         std::vector<World::TilePos2> routePoints;
+        std::vector<uint16_t> waypointIndices; // Waypoint indices corresponding to routePoints
     };
 
     namespace WaterWaypointPathfinding
