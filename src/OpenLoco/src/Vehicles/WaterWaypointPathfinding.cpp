@@ -145,6 +145,9 @@ namespace OpenLoco::Vehicles
                     result.startWaypoint = startWaypointIdx;
                     result.targetWaypoint = targetWaypointIdx;
                     
+                    Diagnostics::Logging::verbose("WaypointPathfinding: Path found! {} waypoints, direction={}, cost={}", 
+                        result.routePoints.size(), result.direction, result.pathCost);
+                    
                     // Record RIPF for waypoint pathfinding
                     RoutingMetrics::recordWaterPathfindCall(astarIterations);
                     return result;

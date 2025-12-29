@@ -51,6 +51,7 @@
 #include "RoutingMetrics.h"
 #include "WaterWaypointPathfinding.h"
 #include "World/CompanyRecords.h"
+#include <OpenLoco/Diagnostics/Logging.h>
 #include "World/IndustryManager.h"
 #include "World/StationManager.h"
 #include "World/TownManager.h"
@@ -3910,6 +3911,8 @@ namespace OpenLoco::Vehicles
             if (distanceToTarget > 15)
             {
                 auto result = WaterWaypointPathfinding::waypointBasedPathfind(head, targetOrderPos, waterMicroZ);
+                Diagnostics::Logging::verbose("Waypoint path result: hasPath={}, routePoints={}", 
+                    result.hasPath, result.routePoints.size());
                 if (result.hasPath && !result.routePoints.empty())
                 {
                     auto& nextWaypoint = result.routePoints[0];
@@ -3932,8 +3935,17 @@ namespace OpenLoco::Vehicles
                         auto* surface = tile.surface();
                         if (surface != nullptr && surface->water() == waterMicroZ)
                         {
+                            Diagnostics::Logging::verbose("Using waypoint path! Direction={}", result.direction);
                             return WaterPathingResult(targetPos);
                         }
+                        else
+                        {
+                            Diagnostics::Logging::verbose("Waypoint path rejected: target not water");
+                        }
+                    }
+                    else
+                    {
+                        Diagnostics::Logging::verbose("Waypoint path rejected: too close to waypoint (distance={})", distanceToWaypoint);
                     }
                 }
             }
