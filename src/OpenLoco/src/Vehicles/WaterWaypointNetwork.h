@@ -37,6 +37,7 @@ namespace OpenLoco::Vehicles
         void initialize();
         void ensureInitialized();
         void markDirty();
+        void reset(); // Clear all data (call on game unload)
         
         // Find which region a position is in
         uint16_t findRegionAt(World::TilePos2 pos, World::MicroZ waterLevel);

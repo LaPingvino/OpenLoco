@@ -607,6 +607,16 @@ namespace OpenLoco::Vehicles
         {
             _dirty = true;
         }
+        
+        void reset()
+        {
+            Diagnostics::Logging::info("WaterWaypointNetwork: Resetting network data");
+            _regions.clear();
+            _channels.clear();
+            _tileToRegion.clear();
+            _initialized = false;
+            _dirty = true;
+        }
 
         uint16_t findRegionAt(World::TilePos2 pos, World::MicroZ waterLevel)
         {
