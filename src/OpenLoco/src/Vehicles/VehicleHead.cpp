@@ -3940,13 +3940,43 @@ namespace OpenLoco::Vehicles
                             enumValue(head.id), head.name, enumValue(head.owner), cachedPath.framesStuck);
                         cachedPath.isValid = false;
                         cachedPath.framesStuck = 0;
+                        cachedPath.recentPositions.clear();
                     }
                 }
                 else
                 {
-                    // Ship moved, reset stuck counter
+                    // Ship moved, reset stuck counter and track position
                     cachedPath.lastPosition = initialTile;
                     cachedPath.framesStuck = 0;
+                    
+                    // Track recent positions to detect oscillation
+                    cachedPath.recentPositions.push_back(initialTile);
+                    if (cachedPath.recentPositions.size() > 6)
+                    {
+                        cachedPath.recentPositions.erase(cachedPath.recentPositions.begin());
+                    }
+                    
+                    // Detect oscillation: if we've been to this position recently (2-4 moves ago)
+                    if (cachedPath.recentPositions.size() >= 4)
+                    {
+                        bool isOscillating = false;
+                        for (size_t i = 0; i < cachedPath.recentPositions.size() - 2; ++i)
+                        {
+                            if (cachedPath.recentPositions[i] == initialTile)
+                            {
+                                isOscillating = true;
+                                break;
+                            }
+                        }
+                        
+                        if (isOscillating)
+                        {
+                            Diagnostics::Logging::warn("V{} [{}] ({}): Oscillating detected - invalidating path to force waypoint navigation",
+                                enumValue(head.id), head.name, enumValue(head.owner));
+                            cachedPath.isValid = false;
+                            cachedPath.recentPositions.clear();
+                        }
+                    }
                 }
                 
                 bool needsRecalc = !cachedPath.isValid || cachedPath.targetPos != targetOrderPos;
@@ -4157,6 +4187,9 @@ namespace OpenLoco::Vehicles
                 
                 // Check if tile A* hit depth limit (cost >= 12 means incomplete path)
                 bool hitDepthLimit = (bestResult.cost >= 12);
+                
+                Diagnostics::Logging::info("V{} [{}] ({}): Tile A* result: cost={}, score={}, hitLimit={}",
+                    enumValue(head.id), head.name, enumValue(head.owner), bestResult.cost, bestResult.bestScore, hitDepthLimit);
                 
                 if (bestResultDirection != 0xFF && !hitDepthLimit)
                 {
