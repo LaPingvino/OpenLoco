@@ -126,7 +126,6 @@ namespace OpenLoco::Config
 
         float scaleFactor = 1.0f;
         bool showFPS = false;
-        bool showRoutingMetrics = false;
         bool uncapFPS = false;
 
         int32_t constructionMarker;

@@ -269,7 +269,6 @@ namespace OpenLoco::Ui::Windows::Options
                 display_scale_up_btn,
                 uncap_fps,
                 show_fps,
-                show_routing_metrics,
                 use_waypoint_pathfinding,
             };
         }
@@ -289,8 +288,7 @@ namespace OpenLoco::Ui::Windows::Options
 
             Widgets::Checkbox({ 10, 111 }, { 174, 12 }, WindowColour::secondary, StringIds::option_uncap_fps, StringIds::option_uncap_fps_tooltip),
             Widgets::Checkbox({ 10, 127 }, { 174, 12 }, WindowColour::secondary, StringIds::option_show_fps_counter, StringIds::option_show_fps_counter_tooltip),
-            Widgets::Checkbox({ 10, 143 }, { 174, 12 }, WindowColour::secondary, StringIds::option_show_routing_metrics, StringIds::option_show_routing_metrics_tooltip),
-            Widgets::Checkbox({ 10, 159 }, { 174, 12 }, WindowColour::secondary, StringIds::option_use_waypoint_pathfinding, StringIds::option_use_waypoint_pathfinding_tooltip)
+            Widgets::Checkbox({ 10, 143 }, { 174, 12 }, WindowColour::secondary, StringIds::option_use_waypoint_pathfinding, StringIds::option_use_waypoint_pathfinding_tooltip)
 
         );
 
@@ -316,14 +314,6 @@ namespace OpenLoco::Ui::Windows::Options
                 {
                     auto& cfg = OpenLoco::Config::get();
                     cfg.uncapFPS ^= 1;
-                    OpenLoco::Config::write();
-                    Gfx::invalidateScreen();
-                    return;
-                }
-                case Widx::show_routing_metrics:
-                {
-                    auto& cfg = OpenLoco::Config::get();
-                    cfg.showRoutingMetrics ^= 1;
                     OpenLoco::Config::write();
                     Gfx::invalidateScreen();
                     return;
@@ -506,11 +496,6 @@ namespace OpenLoco::Ui::Windows::Options
             if (Config::get().showFPS)
             {
                 self.activatedWidgets |= (1ULL << Widx::show_fps);
-            }
-
-            if (Config::get().showRoutingMetrics)
-            {
-                self.activatedWidgets |= (1ULL << Widx::show_routing_metrics);
             }
 
             if (Config::get().useWaypointPathfinding)

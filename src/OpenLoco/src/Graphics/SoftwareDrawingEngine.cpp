@@ -5,7 +5,6 @@
 #include "RenderTarget.h"
 #include "Ui.h"
 #include "Ui/WindowManager.h"
-#include "Vehicles/RoutingMetrics.h"
 
 #include <SDL2/SDL.h>
 #include <algorithm>
@@ -261,12 +260,6 @@ namespace OpenLoco::Gfx
         if (Config::get().showFPS)
         {
             Gfx::drawFPS(_ctx);
-        }
-
-        // Draw routing metrics.
-        if (Config::get().showRoutingMetrics)
-        {
-            Vehicles::RoutingMetrics::drawMetrics(_ctx);
         }
     }
 
