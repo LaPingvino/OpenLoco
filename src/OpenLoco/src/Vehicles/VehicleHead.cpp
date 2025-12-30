@@ -4153,9 +4153,9 @@ namespace OpenLoco::Vehicles
             }
         }
         
-        // Use tile-level A* when close to destination instead of greedy movement
-        // This handles local obstacles better
-        bool useTileAStar = distanceToTarget <= 10 && distanceToTarget > 0;
+        // Use tile-level A* only when very close to destination (within tile A* effective range)
+        // For longer distances, continue using waypoint navigation
+        bool useTileAStar = distanceToTarget <= 6 && distanceToTarget > 0;
         bool useGreedyMovement = false; // Disable greedy movement entirely
         
         {
