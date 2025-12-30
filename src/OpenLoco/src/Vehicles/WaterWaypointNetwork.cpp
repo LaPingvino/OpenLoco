@@ -1,486 +1,594 @@
 #include "WaterWaypointNetwork.h"
 #include "Map/TileManager.h"
 #include "Map/SurfaceElement.h"
+#include "Map/StationElement.h"
+#include "World/StationManager.h"
 #include "RoutingMetrics.h"
 #include <OpenLoco/Diagnostics/Logging.h>
 #include <algorithm>
 #include <queue>
 #include <unordered_map>
+#include <unordered_set>
+
+using namespace OpenLoco::World;
 
 namespace OpenLoco::Vehicles
 {
-    static std::vector<Waypoint> _waypoints;
-    static std::vector<WaterMassGroup> _waterMassGroups;
+    static std::vector<WaterRegion> _regions;
+    static std::vector<WaterChannel> _channels;
     static bool _initialized = false;
     static bool _dirty = true;
-    static std::unordered_map<uint32_t, std::vector<uint16_t>> _spatialGrid;
-    static const int32_t kMaxConnectionDistance = 32;
-    static const int32_t kCellSize = kMaxConnectionDistance;
+    
+    // Map from tile position to region ID (for fast lookup)
+    static std::unordered_map<uint32_t, uint16_t> _tileToRegion;
 
     namespace WaterWaypointNetwork
     {
-        static uint32_t getCellKey(World::TilePos2 pos)
+        static uint32_t getTileKey(World::TilePos2 pos)
         {
-            int32_t cellX = pos.x / kCellSize;
-            int32_t cellY = pos.y / kCellSize;
-            return (static_cast<uint32_t>(cellX) << 16) | static_cast<uint32_t>(cellY);
+            return (static_cast<uint32_t>(pos.x) << 16) | static_cast<uint32_t>(pos.y);
         }
         
-        static void extractWaypoints()
+        static bool isWaterTile(World::TilePos2 pos, World::MicroZ waterLevel)
         {
-            _waypoints.clear();
-            uint32_t operationCount = 0;
-
-            // Scan all tiles for water/land boundaries
-            for (int16_t y = 0; y < World::kMapRows; ++y)
-            {
-                for (int16_t x = 0; x < World::kMapColumns; ++x)
-                {
-                    operationCount++; // Count each tile check
-                    World::TilePos2 tilePos(x, y);
-                    auto tile = World::TileManager::get(tilePos);
-                    auto* surface = tile.surface();
-
-                    if (surface == nullptr || surface->water() == 0)
-                        continue;
-
-                    operationCount++; // Water tile found, checking neighbors
-                    // This is a water tile - check if it's near land
-                    bool nearLand = false;
-                    for (int8_t dy = -1; dy <= 1 && !nearLand; ++dy)
-                    {
-                        for (int8_t dx = -1; dx <= 1; ++dx)
-                        {
-                            if (dx == 0 && dy == 0)
-                                continue;
-
-                            World::TilePos2 neighborPos(x + dx, y + dy);
-                            if (!World::validCoords(neighborPos))
-                                continue;
-
-                            auto neighborTile = World::TileManager::get(neighborPos);
-                            auto* neighborSurface = neighborTile.surface();
-
-                            if (neighborSurface == nullptr || neighborSurface->water() == 0)
-                            {
-                                nearLand = true;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (nearLand)
-                    {
-                        World::TilePos2 waypointPos = tilePos;
-                        
-                        // Check all 4 directions for deeper water
-                        static const World::TilePos2 kDirections[] = {
-                            {0, -1}, {1, 0}, {0, 1}, {-1, 0}
-                        };
-                        
-                        // First, try to find a spot with 4 tiles clearance and 2-tile margin
-                        bool foundGoodSpot = false;
-                        for (const auto& dir : kDirections)
-                        {
-                            for (int32_t offset = 4; offset >= 1 && !foundGoodSpot; --offset)
-                            {
-                                World::TilePos2 offsetPos = tilePos + (dir * offset);
-                                if (!World::validCoords(offsetPos))
-                                    continue;
-
-                                auto offsetTile = World::TileManager::get(offsetPos);
-                                auto* offsetSurface = offsetTile.surface();
-
-                                if (offsetSurface == nullptr || offsetSurface->water() != surface->water())
-                                    continue;
-
-                                // Check if this tile has good water clearance (at least 2 tiles in all directions)
-                                bool hasGoodClearance = true;
-                                for (int8_t checkDy = -2; checkDy <= 2 && hasGoodClearance; ++checkDy)
-                                {
-                                    for (int8_t checkDx = -2; checkDx <= 2; ++checkDx)
-                                    {
-                                        if (checkDx == 0 && checkDy == 0)
-                                            continue;
-
-                                        World::TilePos2 checkPos = offsetPos + World::TilePos2{checkDx, checkDy};
-                                        if (!World::validCoords(checkPos))
-                                            continue;
-
-                                        auto checkTile = World::TileManager::get(checkPos);
-                                        auto* checkSurface = checkTile.surface();
-                                        if (checkSurface == nullptr || checkSurface->water() != surface->water())
-                                        {
-                                            hasGoodClearance = false;
-                                            break;
-                                        }
-                                    }
-                                }
-
-                                if (hasGoodClearance)
-                                {
-                                    waypointPos = offsetPos;
-                                    foundGoodSpot = true;
-                                    break;
-                                }
-                            }
-                            
-                            if (foundGoodSpot)
-                                break;
-                        }
-                        
-                        // If we couldn't find ideal clearance, try to center in the waterway
-                        if (!foundGoodSpot)
-                        {
-                            // For each direction, measure how far we can go before hitting land
-                            int32_t distances[4] = {0, 0, 0, 0};
-                            
-                            for (int dir = 0; dir < 4; ++dir)
-                            {
-                                for (int32_t dist = 1; dist <= 10; ++dist)
-                                {
-                                    World::TilePos2 checkPos = tilePos + (kDirections[dir] * dist);
-                                    if (!World::validCoords(checkPos))
-                                        break;
-                                    
-                                    auto checkTile = World::TileManager::get(checkPos);
-                                    auto* checkSurface = checkTile.surface();
-                                    
-                                    if (checkSurface == nullptr || checkSurface->water() != surface->water())
-                                        break;
-                                    
-                                    distances[dir] = dist;
-                                }
-                            }
-                            
-                            // Find the direction with most water and move halfway in that direction
-                            int32_t bestDist = 0;
-                            int bestDir = -1;
-                            for (int dir = 0; dir < 4; ++dir)
-                            {
-                                if (distances[dir] > bestDist)
-                                {
-                                    bestDist = distances[dir];
-                                    bestDir = dir;
-                                }
-                            }
-                            
-                            // Move to center of the waterway (halfway to the farthest point)
-                            if (bestDir >= 0 && bestDist > 1)
-                            {
-                                int32_t centerOffset = bestDist / 2;
-                                if (centerOffset > 0)
-                                {
-                                    World::TilePos2 centerPos = tilePos + (kDirections[bestDir] * centerOffset);
-                                    if (World::validCoords(centerPos))
-                                    {
-                                        auto centerTile = World::TileManager::get(centerPos);
-                                        auto* centerSurface = centerTile.surface();
-                                        if (centerSurface != nullptr && centerSurface->water() == surface->water())
-                                        {
-                                            waypointPos = centerPos;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        operationCount++; // Waypoint placement computation
-                        Waypoint wp;
-                        wp.pos = waypointPos;
-                        wp.waterLevel = surface->water();
-                        wp.groupId = 0xFFFF;
-                        _waypoints.push_back(wp);
-                    }
-                }
-            }
+            if (!World::validCoords(pos))
+                return false;
             
-            // Record the cost of scanning the entire map for waypoints
-            RoutingMetrics::recordWaterPathfindCall(operationCount);
+            auto tile = World::TileManager::get(pos);
+            auto* surface = tile.surface();
+            
+            return surface != nullptr && surface->water() == waterLevel;
         }
-
-        static bool lineOfSightWater(World::TilePos2 from, World::TilePos2 to, World::MicroZ waterLevel)
+        
+        // Count water neighbors
+        static int countWaterNeighbors(World::TilePos2 pos, World::MicroZ waterLevel)
         {
-            int32_t dx = std::abs(to.x - from.x);
-            int32_t dy = std::abs(to.y - from.y);
-            int32_t sx = from.x < to.x ? 1 : -1;
-            int32_t sy = from.y < to.y ? 1 : -1;
-            int32_t err = dx - dy;
-
-            World::TilePos2 current = from;
-
-            while (current.x != to.x || current.y != to.y)
+            static const World::TilePos2 kDirections[] = {
+                {0, -1}, {1, 0}, {0, 1}, {-1, 0}
+            };
+            
+            int count = 0;
+            for (const auto& dir : kDirections)
             {
-                if (!World::validCoords(current))
-                    return false;
-
-                auto tile = World::TileManager::get(current);
-                auto* surface = tile.surface();
-
-                if (surface == nullptr || surface->water() != waterLevel)
-                    return false;
-
-                int32_t e2 = 2 * err;
-                if (e2 > -dy)
-                {
-                    err -= dy;
-                    current.x += sx;
-                }
-                if (e2 < dx)
-                {
-                    err += dx;
-                    current.y += sy;
-                }
+                if (isWaterTile(pos + dir, waterLevel))
+                    count++;
             }
-
+            return count;
+        }
+        
+        // Classify tiles as open water or narrow channel
+        static bool isNarrowChannel(World::TilePos2 pos, World::MicroZ waterLevel)
+        {
+            int waterNeighbors = countWaterNeighbors(pos, waterLevel);
+            
+            // Narrow channel: exactly 2 opposite water neighbors (forms a line)
+            // or 2 adjacent neighbors (forms a bend)
+            if (waterNeighbors != 2)
+                return false;
+            
+            // If it has exactly 2 water neighbors, it's probably a channel
+            // unless it's part of a wider area
             return true;
         }
         
-        // Tile-by-tile A* pathfinding to check if two waypoints are connected through narrow channels
-        static bool tileAStarConnectable(World::TilePos2 from, World::TilePos2 to, World::MicroZ waterLevel, uint32_t& iterations)
+        // Flood-fill to find a contiguous water region
+        // Subdivides large regions to ensure convexity for greedy navigation
+        static void floodFillRegion(World::TilePos2 start, World::MicroZ waterLevel,
+                                     std::unordered_set<uint32_t>& visited)
         {
-            iterations = 0;
+            const int32_t kMaxRegionSize = 16; // Max dimension for a region to ensure convexity
+            const int32_t kMinRegionTiles = 10; // Minimum tiles for a region (smaller = treat as channel)
             
-            // Maximum search depth to prevent excessive computation
-            const uint32_t kMaxIterations = 200;
+            std::queue<World::TilePos2> toVisit;
+            toVisit.push(start);
+            visited.insert(getTileKey(start));
             
-            struct AStarNode
-            {
-                World::TilePos2 pos;
-                uint16_t gCost;
-                uint16_t hCost;
-                uint16_t fCost() const { return gCost + hCost; }
-                
-                bool operator>(const AStarNode& other) const
-                {
-                    return fCost() > other.fCost();
-                }
-            };
-            
-            auto manhattanDistance = [](World::TilePos2 a, World::TilePos2 b) -> uint16_t {
-                int32_t dx = std::abs(a.x - b.x);
-                int32_t dy = std::abs(a.y - b.y);
-                return static_cast<uint16_t>(dx + dy);
-            };
-            
-            std::priority_queue<AStarNode, std::vector<AStarNode>, std::greater<AStarNode>> openSet;
-            std::unordered_map<uint32_t, uint16_t> gScores;
-            
-            auto encodePos = [](World::TilePos2 pos) -> uint32_t {
-                return (static_cast<uint32_t>(pos.x) << 16) | static_cast<uint32_t>(pos.y);
-            };
-            
-            AStarNode startNode;
-            startNode.pos = from;
-            startNode.gCost = 0;
-            startNode.hCost = manhattanDistance(from, to);
-            
-            openSet.push(startNode);
-            gScores[encodePos(from)] = 0;
+            std::vector<World::TilePos2> allTiles;
             
             static const World::TilePos2 kDirections[] = {
                 {0, -1}, {1, 0}, {0, 1}, {-1, 0}
             };
             
-            while (!openSet.empty() && iterations < kMaxIterations)
+            // First, collect all tiles in this water mass
+            while (!toVisit.empty())
             {
-                iterations++;
-                AStarNode current = openSet.top();
-                openSet.pop();
+                World::TilePos2 current = toVisit.front();
+                toVisit.pop();
                 
-                // Reached target?
-                if (current.pos.x == to.x && current.pos.y == to.y)
-                    return true;
+                allTiles.push_back(current);
                 
-                // Try all 4 directions
+                // Explore neighbors (but skip narrow channels - they'll be handled separately)
                 for (const auto& dir : kDirections)
                 {
-                    World::TilePos2 neighbor = current.pos + dir;
+                    World::TilePos2 neighbor = current + dir;
+                    uint32_t neighborKey = getTileKey(neighbor);
                     
-                    if (!World::validCoords(neighbor))
+                    if (visited.count(neighborKey) > 0)
                         continue;
                     
-                    auto tile = World::TileManager::get(neighbor);
+                    if (!isWaterTile(neighbor, waterLevel))
+                        continue;
+                    
+                    // Skip if it's a narrow channel (we'll handle these separately)
+                    if (isNarrowChannel(neighbor, waterLevel))
+                        continue;
+                    
+                    visited.insert(neighborKey);
+                    toVisit.push(neighbor);
+                }
+            }
+            
+            // Subdivide into smaller regions based on spatial proximity
+            // Use a grid-based approach: split into kMaxRegionSize x kMaxRegionSize cells
+            if (allTiles.empty())
+                return;
+            
+            // Find bounds
+            int16_t minX = allTiles[0].x, maxX = allTiles[0].x;
+            int16_t minY = allTiles[0].y, maxY = allTiles[0].y;
+            
+            for (const auto& tile : allTiles)
+            {
+                minX = std::min(minX, tile.x);
+                maxX = std::max(maxX, tile.x);
+                minY = std::min(minY, tile.y);
+                maxY = std::max(maxY, tile.y);
+            }
+            
+            // Create grid of subregions
+            std::unordered_map<uint32_t, std::vector<World::TilePos2>> cellTiles;
+            
+            for (const auto& tile : allTiles)
+            {
+                int32_t cellX = (tile.x - minX) / kMaxRegionSize;
+                int32_t cellY = (tile.y - minY) / kMaxRegionSize;
+                uint32_t cellKey = (static_cast<uint32_t>(cellX) << 16) | static_cast<uint32_t>(cellY);
+                cellTiles[cellKey].push_back(tile);
+            }
+            
+            // Create a region for each non-empty cell, but only if it's pure water
+            for (const auto& [cellKey, tiles] : cellTiles)
+            {
+                if (tiles.empty())
+                    continue;
+                
+                // Check if this cell is pure water (no land tiles)
+                // Calculate the bounding box of tiles in this cell
+                int16_t cellMinX = tiles[0].x;
+                int16_t cellMaxX = tiles[0].x;
+                int16_t cellMinY = tiles[0].y;
+                int16_t cellMaxY = tiles[0].y;
+                
+                for (const auto& tile : tiles)
+                {
+                    cellMinX = std::min(cellMinX, tile.x);
+                    cellMaxX = std::max(cellMaxX, tile.x);
+                    cellMinY = std::min(cellMinY, tile.y);
+                    cellMaxY = std::max(cellMaxY, tile.y);
+                }
+                
+                // Count how many tiles should be in a fully filled rectangle
+                int32_t expectedTiles = (cellMaxX - cellMinX + 1) * (cellMaxY - cellMinY + 1);
+                int32_t actualTiles = tiles.size();
+                
+                // If the cell contains land (actual < expected), we need to split it further
+                // Use flood fill to create separate regions for each contiguous water area
+                if (actualTiles < expectedTiles)
+                {
+                    // Cell contains land - split it into multiple regions via flood fill
+                    std::unordered_set<uint32_t> cellVisited;
+                    
+                    for (const auto& tile : tiles)
+                    {
+                        if (cellVisited.count(getTileKey(tile)) > 0)
+                            continue;
+                        
+                        // Flood fill from this tile to find a contiguous sub-region
+                        std::queue<World::TilePos2> subQueue;
+                        std::vector<World::TilePos2> subRegionTiles;
+                        
+                        subQueue.push(tile);
+                        cellVisited.insert(getTileKey(tile));
+                        
+                        while (!subQueue.empty())
+                        {
+                            World::TilePos2 current = subQueue.front();
+                            subQueue.pop();
+                            subRegionTiles.push_back(current);
+                            
+                            static const World::TilePos2 kDirections[] = {
+                                {0, -1}, {1, 0}, {0, 1}, {-1, 0}
+                            };
+                            
+                            for (const auto& dir : kDirections)
+                            {
+                                World::TilePos2 neighbor = current + dir;
+                                uint32_t neighborKey = getTileKey(neighbor);
+                                
+                                if (cellVisited.count(neighborKey) > 0)
+                                    continue;
+                                
+                                // Check if neighbor is in our tiles list
+                                bool found = false;
+                                for (const auto& t : tiles)
+                                {
+                                    if (t.x == neighbor.x && t.y == neighbor.y)
+                                    {
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                                
+                                if (found)
+                                {
+                                    cellVisited.insert(neighborKey);
+                                    subQueue.push(neighbor);
+                                }
+                            }
+                        }
+                        
+                        // Create a region for this sub-region (only if large enough)
+                        if (!subRegionTiles.empty() && static_cast<int32_t>(subRegionTiles.size()) >= kMinRegionTiles)
+                        {
+                            WaterRegion region;
+                            region.waterLevel = waterLevel;
+                            region.tiles = subRegionTiles;
+                            
+                            region.minX = subRegionTiles[0].x;
+                            region.maxX = subRegionTiles[0].x;
+                            region.minY = subRegionTiles[0].y;
+                            region.maxY = subRegionTiles[0].y;
+                            
+                            int64_t sumX = 0, sumY = 0;
+                            
+                            for (const auto& t : subRegionTiles)
+                            {
+                                region.minX = std::min(region.minX, t.x);
+                                region.maxX = std::max(region.maxX, t.x);
+                                region.minY = std::min(region.minY, t.y);
+                                region.maxY = std::max(region.maxY, t.y);
+                                
+                                sumX += t.x;
+                                sumY += t.y;
+                            }
+                            
+                            region.centerPoint = World::TilePos2(
+                                static_cast<int16_t>(sumX / subRegionTiles.size()),
+                                static_cast<int16_t>(sumY / subRegionTiles.size())
+                            );
+                            
+                            // Assign region ID based on position in _regions vector
+                            region.regionId = _regions.size();
+                            
+                            // Add to regions list
+                            _regions.push_back(region);
+                            
+                            // Map all tiles to this region
+                            for (const auto& t : subRegionTiles)
+                            {
+                                _tileToRegion[getTileKey(t)] = region.regionId;
+                            }
+                        }
+                        // Note: Small regions (< kMinRegionTiles) are skipped here
+                        // They will be detected as channels or handled via greedy navigation
+                    }
+                }
+                else
+                {
+                    // Pure water cell - create a single region (only if large enough)
+                    if (static_cast<int32_t>(tiles.size()) >= kMinRegionTiles)
+                    {
+                        WaterRegion region;
+                        region.waterLevel = waterLevel;
+                        region.tiles = tiles;
+                        
+                        region.minX = cellMinX;
+                        region.maxX = cellMaxX;
+                        region.minY = cellMinY;
+                        region.maxY = cellMaxY;
+                        
+                        int64_t sumX = 0, sumY = 0;
+                        
+                        for (const auto& tile : tiles)
+                        {
+                            sumX += tile.x;
+                            sumY += tile.y;
+                        }
+                        
+                        region.centerPoint = World::TilePos2(
+                            static_cast<int16_t>(sumX / tiles.size()),
+                            static_cast<int16_t>(sumY / tiles.size())
+                        );
+                        
+                        // Assign region ID based on position in _regions vector
+                        region.regionId = _regions.size();
+                        
+                        // Add to regions list
+                        _regions.push_back(region);
+                        
+                        // Map all tiles to this region
+                        for (const auto& tile : tiles)
+                        {
+                            _tileToRegion[getTileKey(tile)] = region.regionId;
+                        }
+                    }
+                    // Note: Small pure water cells (< kMinRegionTiles) are skipped
+                    // They will be detected as channels or handled via greedy navigation
+                }
+            }
+        }
+        
+        // Detect all water regions
+        static void detectRegions()
+        {
+            Diagnostics::Logging::info("WaterWaypointNetwork: Detecting water regions...");
+            
+            _regions.clear();
+            _tileToRegion.clear();
+            
+            std::unordered_set<uint32_t> visited;
+            uint32_t operationCount = 0;
+            uint32_t waterTilesFound = 0;
+            uint32_t channelTilesSkipped = 0;
+            uint32_t regionStartsFound = 0;
+            
+            // Sample every 4th tile to find region start points
+            for (int32_t y = 0; y < World::kMapRows; y += 4)
+            {
+                for (int32_t x = 0; x < World::kMapColumns; x += 4)
+                {
+                    operationCount++;
+                    World::TilePos2 pos(x, y);
+                    
+                    if (visited.count(getTileKey(pos)) > 0)
+                        continue;
+                    
+                    auto tile = World::TileManager::get(pos);
                     auto* surface = tile.surface();
                     
-                    if (surface == nullptr || surface->water() != waterLevel)
+                    if (surface == nullptr || surface->water() == 0)
                         continue;
                     
-                    uint16_t tentativeGCost = current.gCost + 1;
-                    uint32_t neighborKey = encodePos(neighbor);
+                    waterTilesFound++;
                     
-                    auto it = gScores.find(neighborKey);
-                    if (it == gScores.end() || tentativeGCost < it->second)
+                    // Skip narrow channels
+                    if (isNarrowChannel(pos, surface->water()))
                     {
-                        gScores[neighborKey] = tentativeGCost;
+                        channelTilesSkipped++;
+                        continue;
+                    }
+                    
+                    // Found an open water tile - flood fill to get the whole region
+                    // (flood fill may create multiple subdivided regions)
+                    regionStartsFound++;
+                    floodFillRegion(pos, surface->water(), visited);
+                }
+            }
+            
+            Diagnostics::Logging::info("WaterWaypointNetwork: Found {} water regions from {} region starts ({} water tiles sampled, {} channels skipped)", 
+                _regions.size(), regionStartsFound, waterTilesFound, channelTilesSkipped);
+            RoutingMetrics::recordWaterPathfindCall(operationCount);
+        }
+        
+        // Trace a channel path from a starting point
+        static std::vector<World::TilePos2> traceChannel(World::TilePos2 start, World::MicroZ waterLevel,
+                                                          std::unordered_set<uint32_t>& visited)
+        {
+            std::vector<World::TilePos2> channelPath;
+            channelPath.push_back(start);
+            visited.insert(getTileKey(start));
+            
+            static const World::TilePos2 kDirections[] = {
+                {0, -1}, {1, 0}, {0, 1}, {-1, 0}
+            };
+            
+            World::TilePos2 current = start;
+            
+            // Follow the channel as long as it remains narrow
+            while (true)
+            {
+                World::TilePos2 next = {-1, -1};
+                int waterNeighbors = 0;
+                
+                for (const auto& dir : kDirections)
+                {
+                    World::TilePos2 neighbor = current + dir;
+                    
+                    if (!isWaterTile(neighbor, waterLevel))
+                        continue;
+                    
+                    waterNeighbors++;
+                    
+                    // Skip already visited tiles
+                    if (visited.count(getTileKey(neighbor)) > 0)
+                        continue;
+                    
+                    // This could be the next tile in the channel
+                    if (isNarrowChannel(neighbor, waterLevel))
+                    {
+                        next = neighbor;
+                    }
+                }
+                
+                // If no valid next tile, we've reached the end of the channel
+                if (next.x == -1)
+                    break;
+                
+                // Add to path and continue
+                channelPath.push_back(next);
+                visited.insert(getTileKey(next));
+                current = next;
+            }
+            
+            return channelPath;
+        }
+        
+        // Detect channels connecting regions
+        static void detectChannels()
+        {
+            Diagnostics::Logging::info("WaterWaypointNetwork: Detecting channels...");
+            
+            _channels.clear();
+            std::unordered_set<uint32_t> visitedChannelTiles;
+            uint32_t operationCount = 0;
+            
+            // Scan map looking for narrow channel tiles
+            for (int32_t y = 0; y < World::kMapRows; y += 2)
+            {
+                for (int32_t x = 0; x < World::kMapColumns; x += 2)
+                {
+                    operationCount++;
+                    World::TilePos2 pos(x, y);
+                    
+                    if (visitedChannelTiles.count(getTileKey(pos)) > 0)
+                        continue;
+                    
+                    auto tile = World::TileManager::get(pos);
+                    auto* surface = tile.surface();
+                    
+                    if (surface == nullptr || surface->water() == 0)
+                        continue;
+                    
+                    // Check if this is a narrow channel
+                    if (!isNarrowChannel(pos, surface->water()))
+                        continue;
+                    
+                    // Trace the channel path
+                    auto channelPath = traceChannel(pos, surface->water(), visitedChannelTiles);
+                    
+                    // Only keep channels that are at least 3 tiles long
+                    if (channelPath.size() < 3)
+                        continue;
+                    
+                    // Determine which regions this channel connects
+                    // Check regions at both ends of the channel
+                    static const World::TilePos2 kDirections[] = {
+                        {0, -1}, {1, 0}, {0, 1}, {-1, 0}
+                    };
+                    
+                    uint16_t regionA = 0xFFFF;
+                    uint16_t regionB = 0xFFFF;
+                    
+                    // Check start of channel
+                    for (const auto& dir : kDirections)
+                    {
+                        World::TilePos2 neighbor = channelPath.front() + dir;
+                        auto it = _tileToRegion.find(getTileKey(neighbor));
+                        if (it != _tileToRegion.end())
+                        {
+                            regionA = it->second;
+                            break;
+                        }
+                    }
+                    
+                    // Check end of channel
+                    for (const auto& dir : kDirections)
+                    {
+                        World::TilePos2 neighbor = channelPath.back() + dir;
+                        auto it = _tileToRegion.find(getTileKey(neighbor));
+                        if (it != _tileToRegion.end())
+                        {
+                            regionB = it->second;
+                            break;
+                        }
+                    }
+                    
+                    // Create channel if it connects regions
+                    if (regionA != 0xFFFF && regionB != 0xFFFF && regionA != regionB)
+                    {
+                        WaterChannel channel;
+                        channel.path = channelPath;
+                        channel.waterLevel = surface->water();
+                        channel.regionA = regionA;
+                        channel.regionB = regionB;
                         
-                        AStarNode neighborNode;
-                        neighborNode.pos = neighbor;
-                        neighborNode.gCost = tentativeGCost;
-                        neighborNode.hCost = manhattanDistance(neighbor, to);
+                        uint16_t channelId = static_cast<uint16_t>(_channels.size());
+                        _channels.push_back(channel);
                         
-                        openSet.push(neighborNode);
+                        // Update regions with channel connections
+                        _regions[regionA].connectedChannels.push_back(channelId);
+                        _regions[regionA].connectedRegions.push_back(regionB);
+                        _regions[regionB].connectedChannels.push_back(channelId);
+                        _regions[regionB].connectedRegions.push_back(regionA);
+                        
+                        Diagnostics::Logging::verbose("WaterWaypointNetwork: Found channel {} connecting regions {} and {} ({} tiles)", 
+                            channelId, regionA, regionB, channelPath.size());
                     }
                 }
             }
             
-            return false;
+            Diagnostics::Logging::info("WaterWaypointNetwork: Found {} channels", _channels.size());
+            RoutingMetrics::recordWaterPathfindCall(operationCount);
         }
 
-        // Build spatial grid for fast neighbor lookups (called once during initialization)
-        static void buildSpatialGrid()
+        // Detect adjacent regions and connect them
+        static void detectAdjacentRegions()
         {
-            _spatialGrid.clear();
+            Diagnostics::Logging::info("WaterWaypointNetwork: Detecting adjacent regions...");
             
-            // Populate spatial grid
-            for (size_t i = 0; i < _waypoints.size(); ++i)
-            {
-                uint32_t cellKey = getCellKey(_waypoints[i].pos);
-                _spatialGrid[cellKey].push_back(static_cast<uint16_t>(i));
-            }
-        }
-        
-        // Phase 1: Build connections using only line-of-sight (fast)
-        static void buildLineOfSightConnections()
-        {
-            uint32_t operationCount = 0;
-            uint32_t lineOfSightChecks = 0;
+            uint32_t adjacencyCount = 0;
             
-            for (size_t i = 0; i < _waypoints.size(); ++i)
+            // For each region, check if any of its tiles are adjacent to tiles from other regions
+            for (auto& region : _regions)
             {
-                auto& wp = _waypoints[i];
-                wp.connections.clear();
-
-                int32_t cellX = wp.pos.x / kCellSize;
-                int32_t cellY = wp.pos.y / kCellSize;
-                
-                // Check 3x3 grid of cells around this waypoint
-                for (int32_t dy = -1; dy <= 1; ++dy)
+                // Check tiles on the boundary of this region
+                for (const auto& tile : region.tiles)
                 {
-                    for (int32_t dx = -1; dx <= 1; ++dx)
+                    // Check all 4 directions
+                    static const World::TilePos2 kDirections[] = {
+                        {0, -1}, {1, 0}, {0, 1}, {-1, 0}
+                    };
+                    
+                    for (const auto& dir : kDirections)
                     {
-                        uint32_t cellKey = (static_cast<uint32_t>(cellX + dx) << 16) | static_cast<uint32_t>(cellY + dy);
-                        auto it = _spatialGrid.find(cellKey);
-                        if (it == _spatialGrid.end())
-                            continue;
+                        World::TilePos2 neighbor = tile + dir;
+                        auto it = _tileToRegion.find(getTileKey(neighbor));
                         
-                        for (uint16_t j : it->second)
+                        if (it != _tileToRegion.end() && it->second != region.regionId)
                         {
-                            if (i == j)
-                                continue;
-
-                            operationCount++; // Count waypoint pair check
-                            auto& other = _waypoints[j];
-                            int32_t distX = std::abs(wp.pos.x - other.pos.x);
-                            int32_t distY = std::abs(wp.pos.y - other.pos.y);
-                            int32_t distance = distX + distY;
-
-                            if (distance <= kMaxConnectionDistance && wp.waterLevel == other.waterLevel)
+                            uint16_t neighborRegionId = it->second;
+                            
+                            // Check if this connection already exists
+                            bool alreadyConnected = false;
+                            for (uint16_t connectedId : region.connectedRegions)
                             {
-                                // Only line-of-sight in phase 1 (fast)
-                                lineOfSightChecks++;
-                                if (lineOfSightWater(wp.pos, other.pos, wp.waterLevel))
+                                if (connectedId == neighborRegionId)
                                 {
-                                    wp.connections.push_back(static_cast<uint16_t>(j));
+                                    alreadyConnected = true;
+                                    break;
                                 }
+                            }
+                            
+                            if (!alreadyConnected)
+                            {
+                                // Add bidirectional connection
+                                region.connectedRegions.push_back(neighborRegionId);
+                                _regions[neighborRegionId].connectedRegions.push_back(region.regionId);
+                                adjacencyCount++;
                             }
                         }
                     }
                 }
             }
             
-            // Record cost of line-of-sight connection building
-            uint32_t lineOfSightCost = lineOfSightChecks * 16; // Average ~16 tiles per check
-            RoutingMetrics::recordWaterPathfindCall(operationCount + lineOfSightCost);
-        }
-        
-
-
-        static void buildWaterMassGroups()
-        {
-            _waterMassGroups.clear();
-
-            if (_waypoints.empty())
-                return;
-
-            uint32_t operationCount = 0;
-            std::vector<bool> visited(_waypoints.size(), false);
-            uint16_t currentGroupId = 0;
-
-            for (size_t i = 0; i < _waypoints.size(); ++i)
-            {
-                operationCount++; // Check each waypoint
-                if (visited[i])
-                    continue;
-
-                WaterMassGroup group;
-                group.groupId = currentGroupId;
-
-                std::queue<uint16_t> toVisit;
-                toVisit.push(static_cast<uint16_t>(i));
-                visited[i] = true;
-
-                int64_t sumX = 0, sumY = 0;
-                uint32_t count = 0;
-
-                while (!toVisit.empty())
-                {
-                    operationCount++; // BFS iteration
-                    uint16_t current = toVisit.front();
-                    toVisit.pop();
-
-                    group.waypointIndices.push_back(current);
-                    _waypoints[current].groupId = currentGroupId;
-
-                    sumX += _waypoints[current].pos.x;
-                    sumY += _waypoints[current].pos.y;
-                    count++;
-
-                    for (uint16_t neighborIdx : _waypoints[current].connections)
-                    {
-                        operationCount++; // Check each connection
-                        if (!visited[neighborIdx])
-                        {
-                            visited[neighborIdx] = true;
-                            toVisit.push(neighborIdx);
-                        }
-                    }
-                }
-
-                if (count > 0)
-                {
-                    group.centerPoint = World::Pos2(
-                        static_cast<int16_t>((sumX / count) * World::kTileSize),
-                        static_cast<int16_t>((sumY / count) * World::kTileSize)
-                    );
-                }
-
-                _waterMassGroups.push_back(group);
-                currentGroupId++;
-            }
-            
-            // Record the cost of grouping waypoints via BFS
-            RoutingMetrics::recordWaterPathfindCall(operationCount);
+            Diagnostics::Logging::info("WaterWaypointNetwork: Found {} adjacent region connections", adjacencyCount);
         }
 
         void initialize()
         {
-            // Three-phase initialization for waypoint network:
+            Diagnostics::Logging::info("WaterWaypointNetwork: Initializing region/channel network...");
             
-            // Phase 1: Extract waypoints from map (tracks tile scanning)
-            extractWaypoints();
+            // Step 1: Detect open water regions (creates small 16x16 subdivisions for convexity)
+            detectRegions();
             
-            // Build spatial index for fast neighbor lookups
-            buildSpatialGrid();
+            // Step 2: Detect channels between regions
+            detectChannels();
             
-            // Phase 2: Build connections using only fast line-of-sight checks
-            buildLineOfSightConnections();
+            // Step 3: Detect adjacent regions (connects neighboring regions)
+            detectAdjacentRegions();
             
-            // Phase 3: Initial grouping based on line-of-sight connections
-            buildWaterMassGroups();
-            
-            Diagnostics::Logging::info("WaterWaypointNetwork: Initialized - {} waypoints, {} groups", 
-                _waypoints.size(), _waterMassGroups.size());
+            Diagnostics::Logging::info("WaterWaypointNetwork: Initialization complete - {} regions, {} channels", 
+                _regions.size(), _channels.size());
 
             _initialized = true;
             _dirty = false;
@@ -490,6 +598,7 @@ namespace OpenLoco::Vehicles
         {
             if (!_initialized || _dirty)
             {
+                Diagnostics::Logging::info("WaterWaypointNetwork: ensureInitialized called (_initialized={}, _dirty={})", _initialized, _dirty);
                 initialize();
             }
         }
@@ -499,92 +608,74 @@ namespace OpenLoco::Vehicles
             _dirty = true;
         }
 
-        uint16_t findNearestWaypoint(World::TilePos2 pos, World::MicroZ waterLevel)
+        uint16_t findRegionAt(World::TilePos2 pos, World::MicroZ waterLevel)
         {
             ensureInitialized();
-
-            if (_waypoints.empty())
-                return 0xFFFF;
-
-            uint16_t bestIdx = 0xFFFF;
-            int32_t bestDistance = std::numeric_limits<int32_t>::max();
-
-            for (size_t i = 0; i < _waypoints.size(); ++i)
+            
+            auto it = _tileToRegion.find(getTileKey(pos));
+            if (it != _tileToRegion.end())
             {
-                if (_waypoints[i].waterLevel != waterLevel)
-                    continue;
-
-                int32_t dx = std::abs(_waypoints[i].pos.x - pos.x);
-                int32_t dy = std::abs(_waypoints[i].pos.y - pos.y);
-                int32_t distance = dx + dy;
-
-                if (distance < bestDistance)
+                // Verify water level matches
+                if (_regions[it->second].waterLevel == waterLevel)
+                    return it->second;
+            }
+            
+            // If exact position not in a region, search nearby tiles (for docks/waypoints)
+            // This allows pathfinding to connect to the nearest water region
+            static const World::TilePos2 kSearchPattern[] = {
+                {0, -1}, {1, 0}, {0, 1}, {-1, 0},  // Adjacent tiles
+                {-1, -1}, {1, -1}, {1, 1}, {-1, 1}, // Diagonals
+                {0, -2}, {2, 0}, {0, 2}, {-2, 0},  // 2 tiles away
+            };
+            
+            for (const auto& offset : kSearchPattern)
+            {
+                auto nearbyPos = pos + offset;
+                auto nearbyIt = _tileToRegion.find(getTileKey(nearbyPos));
+                if (nearbyIt != _tileToRegion.end())
                 {
-                    bestDistance = distance;
-                    bestIdx = static_cast<uint16_t>(i);
+                    if (_regions[nearbyIt->second].waterLevel == waterLevel)
+                    {
+                        // Cache this result for future lookups
+                        _tileToRegion[getTileKey(pos)] = nearbyIt->second;
+                        return nearbyIt->second;
+                    }
                 }
             }
-
-            return bestIdx;
+            
+            return 0xFFFF;
         }
 
-        const Waypoint* getWaypoint(uint16_t index)
+        const WaterRegion* getRegion(uint16_t regionId)
         {
             ensureInitialized();
 
-            if (index >= _waypoints.size())
+            if (regionId >= _regions.size())
                 return nullptr;
 
-            return &_waypoints[index];
-        }
-        
-        // Try to connect two waypoints using tile-by-tile A* (for fixing loops on-demand)
-        bool tryConnectWaypoints(uint16_t waypointA, uint16_t waypointB)
-        {
-            ensureInitialized();
-            
-            if (waypointA >= _waypoints.size() || waypointB >= _waypoints.size())
-                return false;
-            
-            auto& wpA = _waypoints[waypointA];
-            auto& wpB = _waypoints[waypointB];
-            
-            // Check if already connected
-            for (uint16_t conn : wpA.connections)
-            {
-                if (conn == waypointB)
-                    return true; // Already connected
-            }
-            
-            // Try tile A* to find a path
-            uint32_t iterations = 0;
-            if (tileAStarConnectable(wpA.pos, wpB.pos, wpA.waterLevel, iterations))
-            {
-                // Found a connection! Add bidirectional edges
-                wpA.connections.push_back(waypointB);
-                wpB.connections.push_back(waypointA);
-                
-                RoutingMetrics::recordWaterPathfindCall(iterations);
-                
-                Diagnostics::Logging::info("WaterWaypointNetwork: Connected waypoints {} and {} via narrow channel (on-demand)", 
-                    waypointA, waypointB);
-                return true;
-            }
-            
-            RoutingMetrics::recordWaterPathfindCall(iterations);
-            return false;
+            return &_regions[regionId];
         }
 
-        const std::vector<Waypoint>& getAllWaypoints()
+        const std::vector<WaterRegion>& getAllRegions()
         {
             ensureInitialized();
-            return _waypoints;
+            return _regions;
         }
 
-        const std::vector<WaterMassGroup>& getWaterMassGroups()
+        const WaterChannel* getChannel(uint16_t channelId)
         {
             ensureInitialized();
-            return _waterMassGroups;
+
+            if (channelId >= _channels.size())
+                return nullptr;
+
+            return &_channels[channelId];
+        }
+
+        const std::vector<WaterChannel>& getAllChannels()
+        {
+            ensureInitialized();
+            return _channels;
         }
     }
 }

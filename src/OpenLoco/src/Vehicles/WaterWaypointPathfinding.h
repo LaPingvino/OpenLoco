@@ -8,19 +8,20 @@ namespace OpenLoco::Vehicles
 {
     struct VehicleHead;
 
-    struct WaypointPathResult
+    struct RegionPathResult
     {
         bool hasPath;
         uint8_t direction;
         uint16_t pathCost;
-        uint16_t startWaypoint;
-        uint16_t targetWaypoint;
-        std::vector<World::TilePos2> routePoints;
-        std::vector<uint16_t> waypointIndices; // Waypoint indices corresponding to routePoints
+        uint16_t startRegion;
+        uint16_t targetRegion;
+        std::vector<World::TilePos2> routePoints; // Complete tile-by-tile path
+        std::vector<uint16_t> channelIds; // Channels to traverse in order
     };
 
     namespace WaterWaypointPathfinding
     {
-        WaypointPathResult waypointBasedPathfind(const VehicleHead& head, World::TilePos2 targetPos, World::MicroZ waterLevel);
+        // Region-based pathfinding: greedy in regions, follow channels between them
+        RegionPathResult regionBasedPathfind(const VehicleHead& head, World::TilePos2 targetPos, World::MicroZ waterLevel);
     }
 }

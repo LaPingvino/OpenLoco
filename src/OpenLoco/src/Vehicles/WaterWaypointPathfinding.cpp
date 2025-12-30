@@ -2,8 +2,6 @@
 #include "WaterWaypointNetwork.h"
 #include "VehicleHead.h"
 #include "RoutingMetrics.h"
-#include "Orders.h"
-#include "World/StationManager.h"
 #include <OpenLoco/Diagnostics/Logging.h>
 #include <algorithm>
 #include <queue>
@@ -14,15 +12,14 @@ namespace OpenLoco::Vehicles
 {
     namespace WaterWaypointPathfinding
     {
-        struct AStarNode
+        struct RegionAStarNode
         {
-            uint16_t waypointIdx;
+            uint16_t regionId;
             uint16_t gCost;
             uint16_t hCost;
             uint16_t fCost() const { return gCost + hCost; }
-            uint16_t parent;
 
-            bool operator>(const AStarNode& other) const
+            bool operator>(const RegionAStarNode& other) const
             {
                 return fCost() > other.fCost();
             }
@@ -35,105 +32,154 @@ namespace OpenLoco::Vehicles
             return static_cast<uint16_t>(dx + dy);
         }
 
-        WaypointPathResult waypointBasedPathfind(const VehicleHead& head, World::TilePos2 targetPos, World::MicroZ waterLevel)
+        RegionPathResult regionBasedPathfind(const VehicleHead& head, World::TilePos2 targetPos, World::MicroZ waterLevel)
         {
             uint32_t astarIterations = 0;
 
-            WaypointPathResult result;
+            RegionPathResult result;
             result.hasPath = false;
             result.direction = 0xFF;
             result.pathCost = 0xFFFF;
-            result.startWaypoint = 0xFFFF;
-            result.targetWaypoint = 0xFFFF;
+            result.startRegion = 0xFFFF;
+            result.targetRegion = 0xFFFF;
 
             WaterWaypointNetwork::ensureInitialized();
 
             World::TilePos2 currentPos(head.position.x / World::kTileSize, head.position.y / World::kTileSize);
 
-            uint16_t startWaypointIdx = WaterWaypointNetwork::findNearestWaypoint(currentPos, waterLevel);
-            uint16_t targetWaypointIdx = WaterWaypointNetwork::findNearestWaypoint(targetPos, waterLevel);
+            // Find which regions we're in
+            uint16_t startRegion = WaterWaypointNetwork::findRegionAt(currentPos, waterLevel);
+            uint16_t targetRegion = WaterWaypointNetwork::findRegionAt(targetPos, waterLevel);
 
-            if (startWaypointIdx == 0xFFFF || targetWaypointIdx == 0xFFFF)
+            if (startRegion == 0xFFFF || targetRegion == 0xFFFF)
             {
-                Diagnostics::Logging::verbose("WaypointPathfinding: No waypoints found (start={}, target={})", 
-                    startWaypointIdx, targetWaypointIdx);
+                Diagnostics::Logging::verbose("WaterWaypointPathfinding: Ship or target not in a water region (start={}, target={})",
+                    startRegion, targetRegion);
                 return result;
             }
 
-            auto* startWaypoint = WaterWaypointNetwork::getWaypoint(startWaypointIdx);
-            auto* targetWaypoint = WaterWaypointNetwork::getWaypoint(targetWaypointIdx);
+            result.startRegion = startRegion;
+            result.targetRegion = targetRegion;
 
-            if (startWaypoint == nullptr || targetWaypoint == nullptr)
+            auto* startRegionPtr = WaterWaypointNetwork::getRegion(startRegion);
+            auto* targetRegionPtr = WaterWaypointNetwork::getRegion(targetRegion);
+
+            if (startRegionPtr == nullptr || targetRegionPtr == nullptr)
                 return result;
 
-            // Check if both waypoints are in the same water mass group
-            if (startWaypoint->groupId != targetWaypoint->groupId)
+            Diagnostics::Logging::verbose("WaterWaypointPathfinding: Region A* from region {} to {} (water level {})",
+                startRegion, targetRegion, waterLevel);
+
+            // If in same region, use greedy movement
+            if (startRegion == targetRegion)
             {
-                Diagnostics::Logging::verbose("WaypointPathfinding: Different water groups (start group={}, target group={})", 
-                    startWaypoint->groupId, targetWaypoint->groupId);
+                Diagnostics::Logging::verbose("WaterWaypointPathfinding: Same region - greedy movement");
+                
+                // Simple greedy path (just the target for now)
+                result.routePoints.push_back(targetPos);
+                result.hasPath = true;
+                result.pathCost = manhattanDistance(currentPos, targetPos);
+
+                // Calculate direction
+                int32_t dx = targetPos.x - currentPos.x;
+                int32_t dy = targetPos.y - currentPos.y;
+
+                if (std::abs(dx) > std::abs(dy))
+                    result.direction = dx > 0 ? 1 : 3;
+                else
+                    result.direction = dy > 0 ? 2 : 0;
+
                 return result;
             }
 
-            Diagnostics::Logging::verbose("WaypointPathfinding: A* from waypoint {} to {} (groups match: {})", 
-                startWaypointIdx, targetWaypointIdx, startWaypoint->groupId);
-
-            result.startWaypoint = startWaypointIdx;
-            result.targetWaypoint = targetWaypointIdx;
-
-            // A* pathfinding
-            std::priority_queue<AStarNode, std::vector<AStarNode>, std::greater<AStarNode>> openSet;
+            // Different regions - use A* to find region path
+            std::priority_queue<RegionAStarNode, std::vector<RegionAStarNode>, std::greater<RegionAStarNode>> openSet;
             std::unordered_map<uint16_t, uint16_t> gScores;
             std::unordered_map<uint16_t, uint16_t> cameFrom;
+            std::unordered_map<uint16_t, uint16_t> channelUsed; // Track which channel was used to reach each region
 
-            AStarNode startNode;
-            startNode.waypointIdx = startWaypointIdx;
+            RegionAStarNode startNode;
+            startNode.regionId = startRegion;
             startNode.gCost = 0;
-            startNode.hCost = manhattanDistance(startWaypoint->pos, targetWaypoint->pos);
-            startNode.parent = 0xFFFF;
+            startNode.hCost = manhattanDistance(startRegionPtr->centerPoint, targetRegionPtr->centerPoint);
 
             openSet.push(startNode);
-            gScores[startWaypointIdx] = 0;
+            gScores[startRegion] = 0;
 
             while (!openSet.empty())
             {
                 astarIterations++;
-                AStarNode current = openSet.top();
+                RegionAStarNode current = openSet.top();
                 openSet.pop();
 
-                if (current.waypointIdx == targetWaypointIdx)
+                if (current.regionId == targetRegion)
                 {
-                    // Reconstruct path
-                    std::vector<uint16_t> waypointPath;
-                    uint16_t pathIdx = targetWaypointIdx;
+                    // Reconstruct region path
+                    std::vector<uint16_t> regionPath;
+                    std::vector<uint16_t> channelPath;
+                    uint16_t pathRegion = targetRegion;
 
-                    while (pathIdx != 0xFFFF)
+                    while (pathRegion != startRegion)
                     {
-                        waypointPath.push_back(pathIdx);
-                        auto it = cameFrom.find(pathIdx);
+                        regionPath.push_back(pathRegion);
+                        
+                        auto channelIt = channelUsed.find(pathRegion);
+                        if (channelIt != channelUsed.end())
+                        {
+                            channelPath.push_back(channelIt->second);
+                        }
+                        
+                        auto it = cameFrom.find(pathRegion);
                         if (it == cameFrom.end())
                             break;
-                        pathIdx = it->second;
+                        pathRegion = it->second;
                     }
 
-                    std::reverse(waypointPath.begin(), waypointPath.end());
+                    regionPath.push_back(startRegion);
+                    
+                    std::reverse(regionPath.begin(), regionPath.end());
+                    std::reverse(channelPath.begin(), channelPath.end());
 
-                    // Convert waypoint path to tile positions and store indices
-                    for (uint16_t wpIdx : waypointPath)
+                    result.channelIds = channelPath;
+
+                    // Build tile path: use region centers as waypoints and channels when available
+                    for (size_t i = 1; i < regionPath.size(); ++i) // Start from 1 to skip starting region
                     {
-                        auto* wp = WaterWaypointNetwork::getWaypoint(wpIdx);
-                        if (wp != nullptr)
+                        // Check if there's a channel for this transition
+                        if (i - 1 < channelPath.size())
                         {
-                            result.routePoints.push_back(wp->pos);
-                            result.waypointIndices.push_back(wpIdx);
+                            auto* channel = WaterWaypointNetwork::getChannel(channelPath[i - 1]);
+                            if (channel != nullptr)
+                            {
+                                // Add channel tiles to route
+                                for (const auto& tile : channel->path)
+                                {
+                                    result.routePoints.push_back(tile);
+                                }
+                                continue; // Skip adding region center since we have the channel path
+                            }
+                        }
+                        
+                        // No channel - use region center as waypoint
+                        auto* regionPtr = WaterWaypointNetwork::getRegion(regionPath[i]);
+                        if (regionPtr != nullptr)
+                        {
+                            result.routePoints.push_back(regionPtr->centerPoint);
                         }
                     }
+
+                    // Add final destination
+                    result.routePoints.push_back(targetPos);
+
+                    result.hasPath = true;
+                    result.pathCost = static_cast<uint16_t>(result.routePoints.size());
 
                     // Calculate direction to first waypoint
                     if (!result.routePoints.empty())
                     {
-                        auto& firstWaypoint = result.routePoints[0];
-                        int32_t dx = firstWaypoint.x - currentPos.x;
-                        int32_t dy = firstWaypoint.y - currentPos.y;
+                        auto& firstPoint = result.routePoints[0];
+                        int32_t dx = firstPoint.x - currentPos.x;
+                        int32_t dy = firstPoint.y - currentPos.y;
 
                         if (std::abs(dx) > std::abs(dy))
                             result.direction = dx > 0 ? 1 : 3;
@@ -141,53 +187,74 @@ namespace OpenLoco::Vehicles
                             result.direction = dy > 0 ? 2 : 0;
                     }
 
-                    result.hasPath = true;
-                    result.pathCost = current.gCost;
-                    result.startWaypoint = startWaypointIdx;
-                    result.targetWaypoint = targetWaypointIdx;
-                    
-                    Diagnostics::Logging::verbose("WaypointPathfinding: Path found! {} waypoints, direction={}, cost={}", 
-                        result.routePoints.size(), result.direction, result.pathCost);
-                    
-                    // Record RIPF for waypoint pathfinding
+                    Diagnostics::Logging::verbose("WaterWaypointPathfinding: Path found! {} regions, {} channels, {} tiles",
+                        regionPath.size(), channelPath.size(), result.routePoints.size());
+
                     RoutingMetrics::recordWaterPathfindCall(astarIterations);
                     return result;
                 }
 
-                auto* currentWaypoint = WaterWaypointNetwork::getWaypoint(current.waypointIdx);
-                if (currentWaypoint == nullptr)
+                auto* currentRegionPtr = WaterWaypointNetwork::getRegion(current.regionId);
+                if (currentRegionPtr == nullptr)
                     continue;
 
-                for (uint16_t neighborIdx : currentWaypoint->connections)
+                // Explore connected regions (via adjacency or channels)
+                for (size_t i = 0; i < currentRegionPtr->connectedRegions.size(); ++i)
                 {
-                    auto* neighbor = WaterWaypointNetwork::getWaypoint(neighborIdx);
-                    if (neighbor == nullptr)
+                    uint16_t neighborRegion = currentRegionPtr->connectedRegions[i];
+                    
+                    auto* neighborRegionPtr = WaterWaypointNetwork::getRegion(neighborRegion);
+                    if (neighborRegionPtr == nullptr)
                         continue;
 
-                    // Only follow connections within same group
-                    if (neighbor->groupId != startWaypoint->groupId)
-                        continue;
+                    // Calculate cost (use channel if available, otherwise use distance between centers)
+                    uint16_t movementCost;
+                    uint16_t channelId = 0xFFFF;
+                    
+                    if (i < currentRegionPtr->connectedChannels.size())
+                    {
+                        channelId = currentRegionPtr->connectedChannels[i];
+                        auto* channel = WaterWaypointNetwork::getChannel(channelId);
+                        if (channel != nullptr)
+                        {
+                            movementCost = static_cast<uint16_t>(channel->path.size());
+                        }
+                        else
+                        {
+                            // Adjacent region without channel - use direct distance
+                            movementCost = manhattanDistance(currentRegionPtr->centerPoint, neighborRegionPtr->centerPoint);
+                            channelId = 0xFFFF;
+                        }
+                    }
+                    else
+                    {
+                        // Adjacent region without channel - use direct distance
+                        movementCost = manhattanDistance(currentRegionPtr->centerPoint, neighborRegionPtr->centerPoint);
+                    }
 
-                    uint16_t tentativeGScore = current.gCost + manhattanDistance(currentWaypoint->pos, neighbor->pos);
+                    uint16_t tentativeGScore = current.gCost + movementCost;
 
-                    auto it = gScores.find(neighborIdx);
+                    auto it = gScores.find(neighborRegion);
                     if (it == gScores.end() || tentativeGScore < it->second)
                     {
-                        gScores[neighborIdx] = tentativeGScore;
-                        cameFrom[neighborIdx] = current.waypointIdx;
+                        gScores[neighborRegion] = tentativeGScore;
+                        cameFrom[neighborRegion] = current.regionId;
+                        if (channelId != 0xFFFF)
+                        {
+                            channelUsed[neighborRegion] = channelId;
+                        }
 
-                        AStarNode neighborNode;
-                        neighborNode.waypointIdx = neighborIdx;
+                        RegionAStarNode neighborNode;
+                        neighborNode.regionId = neighborRegion;
                         neighborNode.gCost = tentativeGScore;
-                        neighborNode.hCost = manhattanDistance(neighbor->pos, targetWaypoint->pos);
-                        neighborNode.parent = current.waypointIdx;
+                        neighborNode.hCost = manhattanDistance(neighborRegionPtr->centerPoint, targetRegionPtr->centerPoint);
 
                         openSet.push(neighborNode);
                     }
                 }
             }
 
-            // Record RIPF for waypoint pathfinding (no path found case)
+            Diagnostics::Logging::info("WaterWaypointPathfinding: No path found after {} iterations", astarIterations);
             RoutingMetrics::recordWaterPathfindCall(astarIterations);
             return result;
         }

@@ -3812,14 +3812,17 @@ namespace OpenLoco::Vehicles
         return result;
     }
 
-    // Loop detection for waypoint pathfinding
-    struct WaypointLoopDetection
+    // Region path caching to avoid recalculating every frame
+    struct CachedRegionPath
     {
-        uint16_t waypoint1 = 0xFFFF;
-        uint16_t waypoint2 = 0xFFFF;
-        uint8_t loopCount = 0;
+        World::TilePos2 targetPos = {0, 0};
+        std::optional<RegionPathResult> cachedPath;
+        size_t currentRouteIndex = 0;
+        bool isValid = false;
+        World::TilePos2 lastPosition = {0, 0};
+        uint8_t framesStuck = 0; // How many frames we've been in same position
     };
-    static std::unordered_map<EntityId, WaypointLoopDetection> _waypointLoopDetection;
+    static std::unordered_map<EntityId, CachedRegionPath> _cachedRegionPaths;
 
     // 0x00427FC9
     static WaterPathingResult waterPathfind(const VehicleHead& head)
@@ -3918,184 +3921,501 @@ namespace OpenLoco::Vehicles
             int32_t dy = std::abs(initialTile.y - targetOrderPos.y);
             int32_t distanceToTarget = dx + dy;
             
-            // Use waypoint pathfinding when more than 4 tiles from target
-            // Within 4 tiles, use traditional pathfinding for final approach to port
-            if (distanceToTarget > 4)
+            // Use waypoint pathfinding when more than 10 tiles from target
+            // Within 10 tiles, use greedy movement toward destination
+            if (distanceToTarget > 10)
             {
-                auto result = WaterWaypointPathfinding::waypointBasedPathfind(head, targetOrderPos, waterMicroZ);
-                Diagnostics::Logging::verbose("Waypoint path result: hasPath={}, routePoints={}", 
-                    result.hasPath, result.routePoints.size());
-                    
-                // Check for waypoint loops and handle them
-                auto& loopDetection = _waypointLoopDetection[head.id];
-                bool useTraditionalPathfinding = false;
+                auto& cachedPath = _cachedRegionPaths[head.id];
                 
-                if (result.hasPath && result.waypointIndices.size() >= 2)
+                // Check if ship is stuck in same position
+                if (cachedPath.lastPosition == initialTile)
                 {
-                    // Use the first two waypoints in the path for loop detection
-                    uint16_t currentWp = result.waypointIndices[0];
-                    uint16_t nextWp = result.waypointIndices[1];
+                    cachedPath.framesStuck++;
                     
-                    // Detect if we're looping between two waypoints
-                    if ((loopDetection.waypoint1 == currentWp && loopDetection.waypoint2 == nextWp) ||
-                        (loopDetection.waypoint1 == nextWp && loopDetection.waypoint2 == currentWp))
+                    // If stuck for 20+ frames, invalidate cache and force recalculation
+                    if (cachedPath.framesStuck >= 20)
                     {
-                        loopDetection.loopCount++;
+                        Diagnostics::Logging::warn("V{} [{}] ({}): Stuck in same position for {} frames - invalidating path",
+                            enumValue(head.id), head.name, enumValue(head.owner), cachedPath.framesStuck);
+                        cachedPath.isValid = false;
+                        cachedPath.framesStuck = 0;
+                    }
+                }
+                else
+                {
+                    // Ship moved, reset stuck counter
+                    cachedPath.lastPosition = initialTile;
+                    cachedPath.framesStuck = 0;
+                }
+                
+                bool needsRecalc = !cachedPath.isValid || cachedPath.targetPos != targetOrderPos;
+                
+                // Recalculate path if target changed or stuck too long
+                if (needsRecalc)
+                {
+                    Diagnostics::Logging::info("V{} [{}] ({}): CACHE MISS - Recalculating region path (isValid={}, targetChanged={})",
+                        enumValue(head.id), head.name, enumValue(head.owner), cachedPath.isValid, cachedPath.targetPos != targetOrderPos);
+                    
+                    cachedPath.targetPos = targetOrderPos;
+                    cachedPath.cachedPath = WaterWaypointPathfinding::regionBasedPathfind(head, targetOrderPos, waterMicroZ);
+                    cachedPath.currentRouteIndex = 0;
+                    
+                    // Log if no path found
+                    if (!cachedPath.cachedPath.has_value() || !cachedPath.cachedPath->hasPath)
+                    {
+                        Diagnostics::Logging::warn("V{} [{}] ({}): No region path found from ({},{}) to ({},{})",
+                            enumValue(head.id), head.name, enumValue(head.owner), 
+                            initialTile.x, initialTile.y, targetOrderPos.x, targetOrderPos.y);
+                    }
+                    
+                    // Mark as valid even if path not found - we don't want to keep recalculating failures
+                    // If no path found, we'll fall back to traditional pathfinding below
+                    cachedPath.isValid = true;
+                    
+                    if (cachedPath.cachedPath.has_value())
+                    {
+                        Diagnostics::Logging::info("V{} [{}] ({}): Region path recalculated - hasPath={}, routePoints={}", 
+                            enumValue(head.id), head.name, enumValue(head.owner),
+                            cachedPath.cachedPath->hasPath, cachedPath.cachedPath->routePoints.size());
+                    }
+                }
+                else
+                {
+                    Diagnostics::Logging::verbose("V{} [{}] ({}): CACHE HIT - Using cached path (routeIdx={})",
+                        enumValue(head.id), head.name, enumValue(head.owner), cachedPath.currentRouteIndex);
+                }
+                
+                if (cachedPath.cachedPath.has_value())
+                {
+                    auto& result = cachedPath.cachedPath.value();
+                    
+                    // If we have a cached result but no path (disconnected water bodies),
+                    // skip waypoint navigation entirely and fall through to greedy movement
+                    if (!result.hasPath)
+                    {
+                        Diagnostics::Logging::verbose("V{} [{}] ({}): Cached path shows no connection - using greedy movement",
+                            enumValue(head.id), head.name, enumValue(head.owner));
+                        // Fall through to greedy movement section below
+                    }
+                    else if (result.hasPath && !result.routePoints.empty())
+                    {
+                        // Follow waypoints in order from the cached path
+                        // Skip waypoints we're already at or past
+                        const int32_t kWaypointReachedDistance = 5;  // When waypoint is considered reached
                         
-                        if (loopDetection.loopCount >= 3)
+                        // Ensure currentRouteIndex is valid
+                        if (cachedPath.currentRouteIndex >= result.routePoints.size())
                         {
-                            Diagnostics::Logging::warn("WaypointPathfinding: Loop detected between waypoints {} and {} (count={})", 
-                                currentWp, nextWp, loopDetection.loopCount);
+                            cachedPath.currentRouteIndex = 0;
+                        }
+                        
+                        // Skip route points we're already at or too close to
+                        // Keep advancing until we find a point that's far enough away
+                        while (cachedPath.currentRouteIndex < result.routePoints.size())
+                        {
+                            auto& currentPoint = result.routePoints[cachedPath.currentRouteIndex];
+                            int32_t dx = std::abs(initialTile.x - currentPoint.x);
+                            int32_t dy = std::abs(initialTile.y - currentPoint.y);
+                            int32_t distance = dx + dy;
                             
-                            // Try to fix the connection using tile A*
-                            if (WaterWaypointNetwork::tryConnectWaypoints(currentWp, nextWp))
+                            // If we're at or past this point, skip to the next one
+                            if (distance <= kWaypointReachedDistance)
                             {
-                                Diagnostics::Logging::info("WaypointPathfinding: Successfully connected waypoints, retrying waypoint pathfinding");
-                                loopDetection.loopCount = 0; // Reset and retry with new connection
-                                // Don't set useTraditionalPathfinding, let it try waypoint pathfinding again
+                                Diagnostics::Logging::info("Skipping route point {} - already there (distance={})", 
+                                    cachedPath.currentRouteIndex, distance);
+                                cachedPath.currentRouteIndex++;
                             }
                             else
                             {
-                                Diagnostics::Logging::warn("WaypointPathfinding: Could not connect waypoints, falling back to traditional pathfinding");
-                                useTraditionalPathfinding = true;
-                                loopDetection.loopCount = 0; // Reset after applying fix
+                                // Found a point that's far enough - use this one
+                                break;
                             }
                         }
-                    }
-                    else
-                    {
-                        // Different waypoints, reset detection
-                        loopDetection.waypoint1 = currentWp;
-                        loopDetection.waypoint2 = nextWp;
-                        loopDetection.loopCount = 1;
-                    }
-                }
-                
-                if (result.hasPath && !result.routePoints.empty() && !useTraditionalPathfinding)
-                {
-                    // Find the first waypoint that's far enough away (at least 3 tiles)
-                    // This prevents oscillating between very close waypoints
-                    size_t targetWaypointIdx = 0;
-                    const int32_t kMinWaypointDistance = 3;
-                    
-                    for (size_t i = 0; i < result.routePoints.size(); ++i)
-                    {
-                        auto& wp = result.routePoints[i];
-                        int32_t dx = std::abs(initialTile.x - wp.x);
-                        int32_t dy = std::abs(initialTile.y - wp.y);
-                        int32_t distance = dx + dy;
                         
-                        if (distance >= kMinWaypointDistance)
+                        // Use the current route point as target
+                        size_t targetWaypointIdx = cachedPath.currentRouteIndex;
+                        if (targetWaypointIdx < result.routePoints.size())
                         {
-                            targetWaypointIdx = i;
-                            break;
-                        }
-                    }
-                    
-                    // If all waypoints are too close, just use the last one (we're near destination)
-                    if (targetWaypointIdx == 0 && result.routePoints.size() > 1)
-                    {
-                        int32_t dx = std::abs(initialTile.x - result.routePoints[0].x);
-                        int32_t dy = std::abs(initialTile.y - result.routePoints[0].y);
-                        if (dx + dy < kMinWaypointDistance)
-                        {
-                            targetWaypointIdx = result.routePoints.size() - 1;
-                        }
-                    }
-                    
-                    if (targetWaypointIdx < result.routePoints.size())
-                    {
-                        auto& targetWaypoint = result.routePoints[targetWaypointIdx];
-                        
-                        // Try all 4 cardinal directions and pick the one that:
-                        // 1. Is water
-                        // 2. Gets us closest to the target waypoint
-                        static const World::Pos2 kDirectionOffsets[] = {
-                            {0, -32}, {32, 0}, {0, 32}, {-32, 0}
-                        };
-                        
-                        World::Pos2 currentPos2D(head.position.x, head.position.y);
-                        int32_t bestDistance = std::numeric_limits<int32_t>::max();
-                        uint8_t bestDirection = 0xFF;
-                        World::Pos2 bestTargetPos;
-                        
-                        for (uint8_t dir = 0; dir < 4; ++dir)
-                        {
-                            auto candidatePos = currentPos2D + kDirectionOffsets[dir];
-                            auto candidateTile = toTileSpace(candidatePos);
+                            auto& targetWaypoint = result.routePoints[targetWaypointIdx];
                             
-                            // Check if it's water
-                            auto tile = TileManager::get(candidateTile);
-                            auto* surface = tile.surface();
-                            if (surface == nullptr || surface->water() != waterMicroZ)
-                                continue;
-                            
-                            // Calculate distance to target waypoint
-                            int32_t dx = std::abs(candidateTile.x - targetWaypoint.x);
-                            int32_t dy = std::abs(candidateTile.y - targetWaypoint.y);
-                            int32_t distance = dx + dy;
-                            
-                            if (distance < bestDistance)
+                            // Validate waypoint coordinates
+                            if (!World::validCoords(targetWaypoint))
                             {
-                                bestDistance = distance;
-                                bestDirection = dir;
-                                bestTargetPos = candidatePos;
+                                Diagnostics::Logging::warn("V{} [{}] ({}): Invalid waypoint coordinates ({},{}), falling back to traditional",
+                                    enumValue(head.id), head.name, enumValue(head.owner), targetWaypoint.x, targetWaypoint.y);
                             }
-                        }
-                        
-                        if (bestDirection != 0xFF)
-                        {
-                            Diagnostics::Logging::verbose("Using waypoint path! Target waypoint index={}, direction={}", 
-                                targetWaypointIdx, bestDirection);
-                            return WaterPathingResult(bestTargetPos);
+                            else
+                            {
+                            
+                            // Try all 4 cardinal directions and pick the one that:
+                            // 1. Is water
+                            // 2. Gets us closest to the target waypoint
+                            static const World::Pos2 kDirectionOffsets[] = {
+                                {0, -32}, {32, 0}, {0, 32}, {-32, 0}
+                            };
+                            
+                            World::Pos2 currentPos2D(head.position.x, head.position.y);
+                            int32_t bestDistance = std::numeric_limits<int32_t>::max();
+                            uint8_t bestDirection = 0xFF;
+                            World::Pos2 bestTargetPos;
+                            
+                            for (uint8_t dir = 0; dir < 4; ++dir)
+                            {
+                                auto candidatePos = currentPos2D + kDirectionOffsets[dir];
+                                auto candidateTile = toTileSpace(candidatePos);
+                                
+                                // Check if it's water
+                                auto tile = TileManager::get(candidateTile);
+                                auto* surface = tile.surface();
+                                bool isWater = (surface != nullptr && surface->water() == waterMicroZ);
+                                
+                                if (!isWater)
+                                {
+                                    Diagnostics::Logging::verbose("Direction {} -> ({},{}) = NOT WATER", dir, candidateTile.x, candidateTile.y);
+                                    continue;
+                                }
+                                
+
+                                
+                                // Calculate distance to target waypoint
+                                int32_t dx = std::abs(candidateTile.x - targetWaypoint.x);
+                                int32_t dy = std::abs(candidateTile.y - targetWaypoint.y);
+                                int32_t distance = dx + dy;
+                                
+                                Diagnostics::Logging::verbose("Direction {} -> ({},{}) = WATER, distance to waypoint = {}", 
+                                    dir, candidateTile.x, candidateTile.y, distance);
+                                
+                                if (distance < bestDistance)
+                                {
+                                    bestDistance = distance;
+                                    bestDirection = dir;
+                                    bestTargetPos = candidatePos;
+                                }
+                            }
+                            
+                            if (bestDirection != 0xFF)
+                            {
+                                // Check if we're actually stuck - all water directions should make progress
+                                // Count how many directions are water
+                                int waterDirections = 0;
+                                for (uint8_t dir = 0; dir < 4; ++dir)
+                                {
+                                    auto candidatePos = currentPos2D + kDirectionOffsets[dir];
+                                    auto candidateTile = toTileSpace(candidatePos);
+                                    auto tile = TileManager::get(candidateTile);
+                                    auto* surface = tile.surface();
+                                    if (surface != nullptr && surface->water() == waterMicroZ)
+                                        waterDirections++;
+                                }
+                                
+                                int32_t currentDist = std::abs(initialTile.x - targetWaypoint.x) + std::abs(initialTile.y - targetWaypoint.y);
+                                
+                                // Only use tile A* if we're really stuck (very few water directions and far from waypoint)
+                                if (currentDist > 10 && waterDirections <= 2 && bestDistance >= currentDist)
+                                {
+                                    Diagnostics::Logging::info("Waypoint blocked - ship@({},{}) can't reach waypoint@({},{}), using tile A*",
+                                        initialTile.x, initialTile.y, targetWaypoint.x, targetWaypoint.y);
+                                    
+                                    // Use tile-by-tile A* to navigate to the waypoint
+                                    PathFindingResult bestResult{ std::numeric_limits<uint16_t>::max(), std::numeric_limits<uint8_t>::max() };
+                                    uint8_t bestResultDirection = 0xFFU;
+                                    uint32_t totalCallCount = 0;
+                                    
+                                    for (auto i = 0U; i < 4; ++i)
+                                    {
+                                        const auto tilePos = initialTile + toTileSpace(kRotationOffset[i]);
+                                        PathFindingResult initResult{ std::numeric_limits<uint16_t>::max(), std::numeric_limits<uint8_t>::max() };
+                                        uint32_t callCount = 0;
+                                        const auto pathResult = waterPathfindToTarget(tilePos, waterMicroZ, targetWaypoint, nearbyVehicles, 0, initResult, callCount);
+                                        totalCallCount += callCount;
+                                        if (pathResult != initResult && (pathResult < bestResult || (pathResult == bestResult && i == curRotation)))
+                                        {
+                                            bestResult = pathResult;
+                                            bestResultDirection = i;
+                                        }
+                                    }
+                                    
+                                    RoutingMetrics::recordWaterPathfindCall(totalCallCount);
+                                    
+                                    if (bestResultDirection != 0xFF)
+                                    {
+                                        const auto targetPos = toWorldSpace(initialTile) + kRotationOffset[bestResultDirection] + World::Pos2(16, 16);
+                                        Diagnostics::Logging::info("Tile A* succeeded - using direction {}", bestResultDirection);
+                                        return WaterPathingResult(targetPos);
+                                    }
+                                    else
+                                    {
+                                        Diagnostics::Logging::info("Tile A* failed - falling back to traditional pathfinding");
+                                        // Fall through to traditional pathfinding below
+                                    }
+                                }
+                                else
+                                {
+                                    Diagnostics::Logging::info("V{} [{}] ({}): Using region path! target@({},{}) dir={}", 
+                                        enumValue(head.id), head.name, enumValue(head.owner),
+                                        targetWaypoint.x, targetWaypoint.y, bestDirection);
+                                    return WaterPathingResult(bestTargetPos);
+                                }
+                            }
+                            else
+                            {
+                                Diagnostics::Logging::info("Waypoint path rejected: no valid water direction toward waypoint, falling back to traditional pathfinding");
+                            }
+                            } // Close the else block for waypoint validation
                         }
                         else
                         {
-                            Diagnostics::Logging::verbose("Waypoint path rejected: no valid water direction toward waypoint");
+                            Diagnostics::Logging::verbose("Waypoint path rejected: all waypoints too close");
                         }
-                    }
-                    else
-                    {
-                        Diagnostics::Logging::verbose("Waypoint path rejected: all waypoints too close");
                     }
                 }
             }
         }
-
-        PathFindingResult bestResult{ std::numeric_limits<uint16_t>::max(), std::numeric_limits<uint8_t>::max() };
-        uint8_t bestResultDirection = 0xFFU;
-        uint32_t totalCallCount = 0;
-        for (auto i = 0U; i < 4; ++i)
+        
+        // Calculate distance to target for final approach logic
+        int32_t dxToTarget = std::abs(initialTile.x - targetOrderPos.x);
+        int32_t dyToTarget = std::abs(initialTile.y - targetOrderPos.y);
+        int32_t distanceToTarget = dxToTarget + dyToTarget;
+        
+        // If we have a dock target and we're very close, check world distance for handoff
+        if (dockRes.has_value() && distanceToTarget <= 2)
         {
-            const auto tilePos = initialTile + toTileSpace(kRotationOffset[i]);
-            PathFindingResult initResult{ std::numeric_limits<uint16_t>::max(), std::numeric_limits<uint8_t>::max() };
-            uint32_t callCount = 0;
-            const auto pathResult = waterPathfindToTarget(tilePos, waterMicroZ, targetOrderPos, nearbyVehicles, 0, initResult, callCount);
-            totalCallCount += callCount;
-            if (pathResult != initResult && (pathResult < bestResult || (pathResult == bestResult && i == curRotation)))
+            auto worldDistance = Math::Vector::manhattanDistance2D(World::Pos2{ head.position }, dockRes->headTarget);
+            // Use tolerance based on speed (same as updateWaterMotion)
+            auto targetTolerance = 3;
+            if (veh2.currentSpeed >= 20.0_mph)
             {
-                bestResult = pathResult;
-                bestResultDirection = i;
+                targetTolerance = 16;
+                if (veh2.currentSpeed > 70.0_mph)
+                {
+                    targetTolerance = 24;
+                }
+            }
+            
+            // Add some extra margin to ensure smooth handoff
+            if (worldDistance <= targetTolerance + 16)
+            {
+                Diagnostics::Logging::info("V{} [{}] ({}): Close enough to dock (world distance={}), returning dock target for handoff",
+                    enumValue(head.id), head.name, enumValue(head.owner), worldDistance);
+                return *dockRes;
+            }
+        }
+        
+        // Use tile-level A* when close to destination instead of greedy movement
+        // This handles local obstacles better
+        bool useTileAStar = distanceToTarget <= 10 && distanceToTarget > 0;
+        bool useGreedyMovement = false; // Disable greedy movement entirely
+        
+        {
+            // Use tile-level A* when close to destination (handles local obstacles)
+            if (useTileAStar)
+            {
+                Diagnostics::Logging::info("V{} [{}] ({}): Close to destination ({} tiles), using tile A*",
+                    enumValue(head.id), head.name, enumValue(head.owner), distanceToTarget);
+                
+                PathFindingResult bestResult{ std::numeric_limits<uint16_t>::max(), std::numeric_limits<uint8_t>::max() };
+                uint8_t bestResultDirection = 0xFFU;
+                uint32_t totalCallCount = 0;
+                
+                for (auto i = 0U; i < 4; ++i)
+                {
+                    const auto tilePos = initialTile + toTileSpace(kRotationOffset[i]);
+                    PathFindingResult initResult{ std::numeric_limits<uint16_t>::max(), std::numeric_limits<uint8_t>::max() };
+                    uint32_t callCount = 0;
+                    const auto pathResult = waterPathfindToTarget(tilePos, waterMicroZ, targetOrderPos, nearbyVehicles, 0, initResult, callCount);
+                    totalCallCount += callCount;
+                    if (pathResult != initResult && (pathResult < bestResult || (pathResult == bestResult && i == curRotation)))
+                    {
+                        bestResult = pathResult;
+                        bestResultDirection = i;
+                    }
+                }
+                
+                RoutingMetrics::recordWaterPathfindCall(totalCallCount);
+                
+                if (bestResultDirection != 0xFF)
+                {
+                    const auto targetPos = toWorldSpace(initialTile) + kRotationOffset[bestResultDirection] + World::Pos2(16, 16);
+                    Diagnostics::Logging::info("V{} [{}] ({}): Tile A* succeeded - direction {}", 
+                        enumValue(head.id), head.name, enumValue(head.owner), bestResultDirection);
+                    return WaterPathingResult(targetPos);
+                }
+                else
+                {
+                    Diagnostics::Logging::info("V{} [{}] ({}): Tile A* failed - falling back to greedy", 
+                        enumValue(head.id), head.name, enumValue(head.owner));
+                    useGreedyMovement = true;
+                }
+            }
+            
+            if (useGreedyMovement)
+            {
+            Diagnostics::Logging::info("V{} [{}] ({}): Close to destination ({} tiles), using greedy movement",
+                enumValue(head.id), head.name, enumValue(head.owner), distanceToTarget);
+            
+            // Try each direction and pick the one that gets us closest to target
+            // Use a scoring system that heavily favors progress toward goal
+            int32_t bestScore = std::numeric_limits<int32_t>::max();
+            uint8_t bestDir = 0xFF;
+            World::Pos2 bestTargetPos;
+            
+            for (uint8_t dir = 0; dir < 4; ++dir)
+            {
+                const auto candidatePos = toWorldSpace(initialTile) + kRotationOffset[dir];
+                const auto candidateTile = toTileSpace(candidatePos);
+                
+                if (!World::validCoords(candidateTile))
+                    continue;
+                
+                auto tile = World::TileManager::get(candidateTile);
+                auto* surface = tile.surface();
+                
+                if (surface == nullptr || surface->water() != waterMicroZ)
+                    continue;
+                
+
+                
+                // Calculate distance to target from this tile
+                int32_t dx = std::abs(candidateTile.x - targetOrderPos.x);
+                int32_t dy = std::abs(candidateTile.y - targetOrderPos.y);
+                int32_t distance = dx + dy;
+                
+                // Calculate progress made (negative = getting closer = good)
+                int32_t progress = distance - distanceToTarget;
+                
+                // Score: heavily penalize not making progress, reward getting closer
+                // Score = distance * 1000 + (progress * 10000)
+                // This means: making 1 tile of progress is worth way more than a slightly longer path
+                int32_t score = distance * 1000 + (progress * 10000);
+                
+                if (score < bestScore)
+                {
+                    bestScore = score;
+                    bestDir = dir;
+                    bestTargetPos = candidatePos + World::Pos2(16, 16);
+                }
+            }
+            
+            if (bestDir != 0xFF)
+            {
+                // Calculate actual distance after the move for logging
+                const auto afterMoveTile = toTileSpace(bestTargetPos);
+                int32_t newDist = std::abs(afterMoveTile.x - targetOrderPos.x) + std::abs(afterMoveTile.y - targetOrderPos.y);
+                Diagnostics::Logging::info("V{} [{}] ({}): Greedy movement dir={}, new distance={} (score={})",
+                    enumValue(head.id), head.name, enumValue(head.owner), bestDir, newDist, bestScore);
+                return WaterPathingResult(bestTargetPos);
+            }
+            else
+            {
+                // Greedy movement failed (surrounded by land) - skip to exploration logic
+                Diagnostics::Logging::warn("V{} [{}] ({}): Greedy movement failed, using exploration",
+                    enumValue(head.id), head.name, enumValue(head.owner));
+                // Fall through to exploration section below
+            }
             }
         }
 
-        // Record RIPF metrics for traditional pathfinding
-        RoutingMetrics::recordWaterPathfindCall(totalCallCount);
-
-        if (bestResultDirection == 0xFF)
+        // Emergency fallback: Expand network and try to navigate properly
+        // Only reaches here if:
+        // 1. Far from destination (>10 tiles) AND waypoint pathfinding already tried, OR
+        // 2. Greedy movement was skipped due to no waypoint path
+        // This prevents triggering every frame when ship is close but stuck
+        if (useGreedyMovement)
         {
-            return WaterPathingResult(toWorldSpace(initialTile) + World::Pos2(16, 16));
-        }
-
-        if (dockRes.has_value() && bestResult == PathFindingResult{ 0, 0 })
-        {
-            return dockRes.value();
+            // We tried greedy movement and it failed, so fall through to exploration
+            // Don't trigger emergency expansion when close to destination
         }
         else
         {
-            const auto targetPos = toWorldSpace(initialTile) + kRotationOffset[bestResultDirection] + World::Pos2(16, 16);
-            return WaterPathingResult(targetPos);
+            // We're far from destination and waypoint pathfinding didn't help
+            Diagnostics::Logging::warn("V{} [{}] ({}): No waypoint path available - falling back to exploration",
+                enumValue(head.id), head.name, enumValue(head.owner));
         }
+        
+        // Last resort: move toward destination or any available water
+        Diagnostics::Logging::warn("V{} [{}] ({}): Last resort - greedy movement toward destination",
+            enumValue(head.id), head.name, enumValue(head.owner));
+        
+        // Score each direction based on distance to target
+        struct DirectionScore
+        {
+            uint8_t direction;
+            int32_t distanceToTarget = 0;
+            bool hasWater = false;
+        };
+        
+        DirectionScore dirScores[4];
+        for (uint8_t dir = 0; dir < 4; ++dir)
+        {
+            dirScores[dir].direction = dir;
+            
+            // Check if this direction has water
+            const auto checkTile = initialTile + toTileSpace(kRotationOffset[dir]);
+            
+            if (!World::validCoords(checkTile))
+                continue;
+            
+            auto tile = World::TileManager::get(checkTile);
+            auto* surface = tile.surface();
+            
+            if (surface == nullptr || surface->water() != waterMicroZ)
+                continue;
+            
+            dirScores[dir].hasWater = true;
+            
+            // Calculate distance to target
+            int32_t dx = std::abs(checkTile.x - targetOrderPos.x);
+            int32_t dy = std::abs(checkTile.y - targetOrderPos.y);
+            dirScores[dir].distanceToTarget = dx + dy;
+        }
+        
+        // Sort directions by: has water, then distance to target (ascending)
+        std::sort(std::begin(dirScores), std::end(dirScores), [](const DirectionScore& a, const DirectionScore& b) {
+            // Prefer directions with water
+            if (a.hasWater != b.hasWater)
+                return a.hasWater;
+            // Prefer closer to target
+            return a.distanceToTarget < b.distanceToTarget;
+        });
+        
+        // Try directions in order of promise
+        for (auto dirIdx = 0U; dirIdx < 4; ++dirIdx)
+        {
+            uint8_t dir = dirScores[dirIdx].direction;
+            
+            for (int32_t distance = 1; distance <= 5; ++distance)
+            {
+                const auto offset = kRotationOffset[dir] * distance;
+                const auto checkTile = initialTile + toTileSpace(offset);
+                
+                if (!World::validCoords(checkTile))
+                    break; // Invalid coords, stop this direction
+                
+                auto tile = World::TileManager::get(checkTile);
+                auto* surface = tile.surface();
+                
+                if (surface == nullptr || surface->water() == 0)
+                {
+                    // Hit land, stop searching this direction
+                    break;
+                }
+                
+                if (surface->water() == waterMicroZ)
+                {
+                    // Found water at correct level - move here
+                    const auto emergencyTargetPos = toWorldSpace(checkTile) + World::Pos2(16, 16);
+                    Diagnostics::Logging::info("V{} [{}] ({}): Last resort moving {} tiles in direction {} (toward destination)",
+                        enumValue(head.id), head.name, enumValue(head.owner), distance, dir);
+                    return WaterPathingResult(emergencyTargetPos);
+                }
+                // Otherwise it's water at wrong level, keep searching this direction
+            }
+        }
+        
+        // Absolute last resort: stay in place
+        Diagnostics::Logging::error("V{} [{}] ({}): No water found in any direction - staying in place",
+            enumValue(head.id), head.name, enumValue(head.owner));
+        return WaterPathingResult(toWorldSpace(initialTile) + World::Pos2(16, 16));
     }
 
     // 0x0042750E
