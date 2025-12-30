@@ -3821,6 +3821,7 @@ namespace OpenLoco::Vehicles
         bool isValid = false;
         World::TilePos2 lastPosition = {0, 0};
         uint8_t framesStuck = 0; // How many frames we've been in same position
+        std::vector<World::TilePos2> recentPositions; // Last few positions to avoid backtracking
     };
     static std::unordered_map<EntityId, CachedRegionPath> _cachedRegionPaths;
 
@@ -4046,122 +4047,42 @@ namespace OpenLoco::Vehicles
                             }
                             else
                             {
-                            
-                            // Try all 4 cardinal directions and pick the one that:
-                            // 1. Is water
-                            // 2. Gets us closest to the target waypoint
-                            static const World::Pos2 kDirectionOffsets[] = {
-                                {0, -32}, {32, 0}, {0, 32}, {-32, 0}
-                            };
-                            
-                            World::Pos2 currentPos2D(head.position.x, head.position.y);
-                            int32_t bestDistance = std::numeric_limits<int32_t>::max();
-                            uint8_t bestDirection = 0xFF;
-                            World::Pos2 bestTargetPos;
-                            
-                            for (uint8_t dir = 0; dir < 4; ++dir)
-                            {
-                                auto candidatePos = currentPos2D + kDirectionOffsets[dir];
-                                auto candidateTile = toTileSpace(candidatePos);
+                                // Use tile-level A* to reliably navigate to the waypoint
+                                // This ensures we follow the certified good route from region pathfinding
+                                Diagnostics::Logging::info("V{} [{}] ({}): Following waypoint at ({},{})",
+                                    enumValue(head.id), head.name, enumValue(head.owner), targetWaypoint.x, targetWaypoint.y);
                                 
-                                // Check if it's water
-                                auto tile = TileManager::get(candidateTile);
-                                auto* surface = tile.surface();
-                                bool isWater = (surface != nullptr && surface->water() == waterMicroZ);
+                                PathFindingResult bestResult{ std::numeric_limits<uint16_t>::max(), std::numeric_limits<uint8_t>::max() };
+                                uint8_t bestResultDirection = 0xFFU;
+                                uint32_t totalCallCount = 0;
                                 
-                                if (!isWater)
+                                for (auto i = 0U; i < 4; ++i)
                                 {
-                                    Diagnostics::Logging::verbose("Direction {} -> ({},{}) = NOT WATER", dir, candidateTile.x, candidateTile.y);
-                                    continue;
+                                    const auto tilePos = initialTile + toTileSpace(kRotationOffset[i]);
+                                    PathFindingResult initResult{ std::numeric_limits<uint16_t>::max(), std::numeric_limits<uint8_t>::max() };
+                                    uint32_t callCount = 0;
+                                    const auto pathResult = waterPathfindToTarget(tilePos, waterMicroZ, targetWaypoint, nearbyVehicles, 0, initResult, callCount);
+                                    totalCallCount += callCount;
+                                    if (pathResult != initResult && (pathResult < bestResult || (pathResult == bestResult && i == curRotation)))
+                                    {
+                                        bestResult = pathResult;
+                                        bestResultDirection = i;
+                                    }
                                 }
                                 
-
+                                RoutingMetrics::recordWaterPathfindCall(totalCallCount);
                                 
-                                // Calculate distance to target waypoint
-                                int32_t dx = std::abs(candidateTile.x - targetWaypoint.x);
-                                int32_t dy = std::abs(candidateTile.y - targetWaypoint.y);
-                                int32_t distance = dx + dy;
-                                
-                                Diagnostics::Logging::verbose("Direction {} -> ({},{}) = WATER, distance to waypoint = {}", 
-                                    dir, candidateTile.x, candidateTile.y, distance);
-                                
-                                // Prefer this direction if: distance is better, OR distance is equal and this is current direction
-                                if (distance < bestDistance || (distance == bestDistance && dir == curRotation))
+                                if (bestResultDirection != 0xFF)
                                 {
-                                    bestDistance = distance;
-                                    bestDirection = dir;
-                                    bestTargetPos = candidatePos;
-                                }
-                            }
-                            
-                            if (bestDirection != 0xFF)
-                            {
-                                // Check if we're actually stuck - all water directions should make progress
-                                // Count how many directions are water
-                                int waterDirections = 0;
-                                for (uint8_t dir = 0; dir < 4; ++dir)
-                                {
-                                    auto candidatePos = currentPos2D + kDirectionOffsets[dir];
-                                    auto candidateTile = toTileSpace(candidatePos);
-                                    auto tile = TileManager::get(candidateTile);
-                                    auto* surface = tile.surface();
-                                    if (surface != nullptr && surface->water() == waterMicroZ)
-                                        waterDirections++;
-                                }
-                                
-                                int32_t currentDist = std::abs(initialTile.x - targetWaypoint.x) + std::abs(initialTile.y - targetWaypoint.y);
-                                
-                                // Only use tile A* if we're really stuck (very few water directions and far from waypoint)
-                                if (currentDist > 10 && waterDirections <= 2 && bestDistance >= currentDist)
-                                {
-                                    Diagnostics::Logging::info("Waypoint blocked - ship@({},{}) can't reach waypoint@({},{}), using tile A*",
-                                        initialTile.x, initialTile.y, targetWaypoint.x, targetWaypoint.y);
-                                    
-                                    // Use tile-by-tile A* to navigate to the waypoint
-                                    PathFindingResult bestResult{ std::numeric_limits<uint16_t>::max(), std::numeric_limits<uint8_t>::max() };
-                                    uint8_t bestResultDirection = 0xFFU;
-                                    uint32_t totalCallCount = 0;
-                                    
-                                    for (auto i = 0U; i < 4; ++i)
-                                    {
-                                        const auto tilePos = initialTile + toTileSpace(kRotationOffset[i]);
-                                        PathFindingResult initResult{ std::numeric_limits<uint16_t>::max(), std::numeric_limits<uint8_t>::max() };
-                                        uint32_t callCount = 0;
-                                        const auto pathResult = waterPathfindToTarget(tilePos, waterMicroZ, targetWaypoint, nearbyVehicles, 0, initResult, callCount);
-                                        totalCallCount += callCount;
-                                        if (pathResult != initResult && (pathResult < bestResult || (pathResult == bestResult && i == curRotation)))
-                                        {
-                                            bestResult = pathResult;
-                                            bestResultDirection = i;
-                                        }
-                                    }
-                                    
-                                    RoutingMetrics::recordWaterPathfindCall(totalCallCount);
-                                    
-                                    if (bestResultDirection != 0xFF)
-                                    {
-                                        const auto targetPos = toWorldSpace(initialTile) + kRotationOffset[bestResultDirection] + World::Pos2(16, 16);
-                                        Diagnostics::Logging::info("Tile A* succeeded - using direction {}", bestResultDirection);
-                                        return WaterPathingResult(targetPos);
-                                    }
-                                    else
-                                    {
-                                        Diagnostics::Logging::info("Tile A* failed - falling back to traditional pathfinding");
-                                        // Fall through to traditional pathfinding below
-                                    }
+                                    const auto targetPos = toWorldSpace(initialTile) + kRotationOffset[bestResultDirection] + World::Pos2(16, 16);
+                                    Diagnostics::Logging::info("Tile A* to waypoint succeeded - direction {}", bestResultDirection);
+                                    return WaterPathingResult(targetPos);
                                 }
                                 else
                                 {
-                                    Diagnostics::Logging::info("V{} [{}] ({}): Using region path! target@({},{}) dir={}", 
-                                        enumValue(head.id), head.name, enumValue(head.owner),
-                                        targetWaypoint.x, targetWaypoint.y, bestDirection);
-                                    return WaterPathingResult(bestTargetPos);
+                                    Diagnostics::Logging::warn("Tile A* to waypoint failed - falling back to traditional pathfinding");
+                                    // Fall through to traditional pathfinding below
                                 }
-                            }
-                            else
-                            {
-                                Diagnostics::Logging::info("Waypoint path rejected: no valid water direction toward waypoint, falling back to traditional pathfinding");
-                            }
                             } // Close the else block for waypoint validation
                         }
                         else
