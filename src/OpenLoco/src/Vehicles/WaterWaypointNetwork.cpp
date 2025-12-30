@@ -3,7 +3,6 @@
 #include "Map/SurfaceElement.h"
 #include "Map/StationElement.h"
 #include "World/StationManager.h"
-#include "RoutingMetrics.h"
 #include <OpenLoco/Diagnostics/Logging.h>
 #include <algorithm>
 #include <queue>
@@ -367,7 +366,6 @@ namespace OpenLoco::Vehicles
             
             Diagnostics::Logging::info("WaterWaypointNetwork: Found {} water regions from {} region starts ({} water tiles sampled, {} channels skipped)", 
                 _regions.size(), regionStartsFound, waterTilesFound, channelTilesSkipped);
-            RoutingMetrics::recordWaterPathfindCall(operationCount);
         }
         
         // Trace a channel path from a starting point
@@ -518,7 +516,6 @@ namespace OpenLoco::Vehicles
             }
             
             Diagnostics::Logging::info("WaterWaypointNetwork: Found {} channels", _channels.size());
-            RoutingMetrics::recordWaterPathfindCall(operationCount);
         }
 
         // Detect adjacent regions and connect them

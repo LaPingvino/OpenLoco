@@ -1,7 +1,6 @@
 #include "WaterWaypointPathfinding.h"
 #include "WaterWaypointNetwork.h"
 #include "VehicleHead.h"
-#include "RoutingMetrics.h"
 #include <OpenLoco/Diagnostics/Logging.h>
 #include <algorithm>
 #include <queue>
@@ -190,7 +189,6 @@ namespace OpenLoco::Vehicles
                     Diagnostics::Logging::verbose("WaterWaypointPathfinding: Path found! {} regions, {} channels, {} tiles",
                         regionPath.size(), channelPath.size(), result.routePoints.size());
 
-                    RoutingMetrics::recordWaterPathfindCall(astarIterations);
                     return result;
                 }
 
@@ -255,7 +253,6 @@ namespace OpenLoco::Vehicles
             }
 
             Diagnostics::Logging::info("WaterWaypointPathfinding: No path found after {} iterations", astarIterations);
-            RoutingMetrics::recordWaterPathfindCall(astarIterations);
             return result;
         }
     }

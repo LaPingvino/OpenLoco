@@ -3799,7 +3799,7 @@ namespace OpenLoco::Vehicles
         result = std::min(result, newResult);
         if (score != 0)
         {
-            if (cost >= 7)
+            if (cost >= 12)  // Increased from 7 to handle longer final approaches
             {
                 return result;
             }
@@ -4155,7 +4155,10 @@ namespace OpenLoco::Vehicles
                 
                 RoutingMetrics::recordWaterPathfindCall(totalCallCount);
                 
-                if (bestResultDirection != 0xFF)
+                // Check if tile A* hit depth limit (cost >= 12 means incomplete path)
+                bool hitDepthLimit = (bestResult.cost >= 12);
+                
+                if (bestResultDirection != 0xFF && !hitDepthLimit)
                 {
                     const auto targetPos = toWorldSpace(initialTile) + kRotationOffset[bestResultDirection] + World::Pos2(16, 16);
                     Diagnostics::Logging::info("V{} [{}] ({}): Tile A* succeeded - direction {}", 
@@ -4164,9 +4167,20 @@ namespace OpenLoco::Vehicles
                 }
                 else
                 {
-                    Diagnostics::Logging::info("V{} [{}] ({}): Tile A* failed - falling back to greedy", 
-                        enumValue(head.id), head.name, enumValue(head.owner));
-                    useGreedyMovement = true;
+                    if (hitDepthLimit)
+                    {
+                        Diagnostics::Logging::info("V{} [{}] ({}): Tile A* hit depth limit - recalculating region path", 
+                            enumValue(head.id), head.name, enumValue(head.owner));
+                        // Invalidate cache to force region pathfinding recalculation
+                        auto& cachedPath = _cachedRegionPaths[head.id];
+                        cachedPath.isValid = false;
+                        // Fall through to let region pathfinding handle it
+                    }
+                    else
+                    {
+                        Diagnostics::Logging::info("V{} [{}] ({}): Tile A* failed - falling back", 
+                            enumValue(head.id), head.name, enumValue(head.owner));
+                    }
                 }
             }
             
