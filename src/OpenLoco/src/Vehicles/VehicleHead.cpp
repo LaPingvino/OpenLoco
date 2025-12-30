@@ -4021,12 +4021,12 @@ namespace OpenLoco::Vehicles
                     auto& result = cachedPath.cachedPath.value();
                     
                     // If we have a cached result but no path (disconnected water bodies),
-                    // skip waypoint navigation entirely and fall through to greedy movement
+                    // skip waypoint navigation entirely and fall through to traditional pathfinding
                     if (!result.hasPath)
                     {
-                        Diagnostics::Logging::verbose("V{} [{}] ({}): Cached path shows no connection - using greedy movement",
-                            enumValue(head.id), head.name, enumValue(head.owner));
-                        // Fall through to greedy movement section below
+                        Diagnostics::Logging::warn("V{} [{}] ({}): Cached path shows no connection (startRegion={}, targetRegion={}) - falling through",
+                            enumValue(head.id), head.name, enumValue(head.owner), result.startRegion, result.targetRegion);
+                        // Fall through to traditional pathfinding below
                     }
                     else if (result.hasPath && !result.routePoints.empty())
                     {
