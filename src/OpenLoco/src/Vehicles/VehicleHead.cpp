@@ -4085,7 +4085,8 @@ namespace OpenLoco::Vehicles
                                 Diagnostics::Logging::verbose("Direction {} -> ({},{}) = WATER, distance to waypoint = {}", 
                                     dir, candidateTile.x, candidateTile.y, distance);
                                 
-                                if (distance < bestDistance)
+                                // Prefer this direction if: distance is better, OR distance is equal and this is current direction
+                                if (distance < bestDistance || (distance == bestDistance && dir == curRotation))
                                 {
                                     bestDistance = distance;
                                     bestDirection = dir;
