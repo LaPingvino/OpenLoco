@@ -1,6 +1,7 @@
 #include "VehicleHead.h"
 #include "Audio/Audio.h"
 #include "Config.h"
+#include "WaterBinaryMap.h"
 #include "Date.h"
 #include "Economy/Economy.h"
 #include "Effects/Effect.h"
@@ -3807,6 +3808,16 @@ namespace OpenLoco::Vehicles
         return result;
     }
 
+    // Cached BSP path per ship for long-distance navigation
+    struct CachedBspPath
+    {
+        World::TilePos2 targetPos = {0, 0};
+        std::vector<World::TilePos2> waypoints;
+        size_t currentWaypointIndex = 0;
+        bool isValid = false;
+    };
+    static std::unordered_map<EntityId, CachedBspPath> _cachedBspPaths;
+
     // 0x00427FC9
     static WaterPathingResult waterPathfind(const VehicleHead& head)
     {
@@ -3851,6 +3862,83 @@ namespace OpenLoco::Vehicles
         const auto initialTile = toTileSpace(head.position);
         const auto waterMicroZ = veh2.position.z / World::kMicroZStep;
 
+        // Calculate distance to target
+        int32_t dx = std::abs(initialTile.x - targetOrderPos.x);
+        int32_t dy = std::abs(initialTile.y - targetOrderPos.y);
+        int32_t distanceToTarget = dx + dy;
+
+        // For long distances (> depth limit of vanilla pathfinding), use BSP hierarchical pathfinding
+        if (distanceToTarget > 7)
+        {
+            auto& cachedPath = _cachedBspPaths[head.id];
+
+            // Check if we need to recalculate the path
+            bool needsRecalc = !cachedPath.isValid || cachedPath.targetPos != targetOrderPos;
+
+            if (needsRecalc)
+            {
+                cachedPath.targetPos = targetOrderPos;
+                auto bspResult = WaterBinaryMap::findPath(initialTile, targetOrderPos, waterMicroZ);
+                cachedPath.waypoints = std::move(bspResult.waypoints);
+                cachedPath.currentWaypointIndex = 0;
+                cachedPath.isValid = bspResult.hasPath;
+            }
+
+            // If we have a valid BSP path, navigate to the current waypoint
+            if (cachedPath.isValid && !cachedPath.waypoints.empty())
+            {
+                // Skip waypoints we've already reached
+                constexpr int32_t kWaypointReachedDistance = 4;
+
+                while (cachedPath.currentWaypointIndex < cachedPath.waypoints.size())
+                {
+                    auto& waypoint = cachedPath.waypoints[cachedPath.currentWaypointIndex];
+                    int32_t wpDx = std::abs(initialTile.x - waypoint.x);
+                    int32_t wpDy = std::abs(initialTile.y - waypoint.y);
+
+                    if (wpDx + wpDy <= kWaypointReachedDistance)
+                    {
+                        cachedPath.currentWaypointIndex++;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+
+                // Navigate to current waypoint using tile-level A*
+                if (cachedPath.currentWaypointIndex < cachedPath.waypoints.size())
+                {
+                    auto& currentWaypoint = cachedPath.waypoints[cachedPath.currentWaypointIndex];
+
+                    // Use tile-level pathfinding toward the waypoint
+                    PathFindingResult bestResult{ std::numeric_limits<uint16_t>::max(), std::numeric_limits<uint8_t>::max() };
+                    uint8_t bestResultDirection = 0xFFU;
+
+                    for (auto i = 0U; i < 4; ++i)
+                    {
+                        const auto tilePos = initialTile + toTileSpace(kRotationOffset[i]);
+                        PathFindingResult initResult{ std::numeric_limits<uint16_t>::max(), std::numeric_limits<uint8_t>::max() };
+                        const auto pathResult = waterPathfindToTarget(tilePos, waterMicroZ, currentWaypoint, nearbyVehicles, 0, initResult);
+                        if (pathResult != initResult && (pathResult < bestResult || (pathResult == bestResult && i == curRotation)))
+                        {
+                            bestResult = pathResult;
+                            bestResultDirection = i;
+                        }
+                    }
+
+                    if (bestResultDirection != 0xFF)
+                    {
+                        const auto targetPos = toWorldSpace(initialTile) + kRotationOffset[bestResultDirection] + World::Pos2(16, 16);
+                        return WaterPathingResult(targetPos);
+                    }
+                    // If tile-level A* fails, fall through to vanilla pathfinding
+                }
+            }
+            // If BSP path invalid or exhausted, fall through to vanilla pathfinding
+        }
+
+        // Vanilla tile-level pathfinding (for short distances or as fallback)
         PathFindingResult bestResult{ std::numeric_limits<uint16_t>::max(), std::numeric_limits<uint8_t>::max() };
         uint8_t bestResultDirection = 0xFFU;
         for (auto i = 0U; i < 4; ++i)
