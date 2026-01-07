@@ -84,17 +84,18 @@ namespace OpenLoco::Vehicles::WaterBinaryMap
         }
 
         // Build quadrant cache bottom-up from bitmap
+        // Level 0 = finest (2x2 tiles per quadrant, most quadrants)
+        // Level numLevels-1 = coarsest (1 quadrant = whole map)
         static void buildQuadrantCache()
         {
             // Allocate cache for all levels
             _quadrantCache.resize(_numLevels);
 
-            // Start from finest level (2x2 tile quadrants)
-            uint32_t finestLevel = _numLevels - 1;
-            uint32_t quadrantsPerSide = _paddedSize / 2; // At finest level, each quadrant is 2x2 tiles
+            // Level 0: finest level with 2x2 tile quadrants
+            // For 512x512 map: 256x256 quadrants at level 0
+            uint32_t quadrantsPerSide = _paddedSize / 2;
 
-            // Level numLevels-1: count water in each 2x2 tile block
-            _quadrantCache[finestLevel].assign(quadrantsPerSide, std::vector<uint32_t>(quadrantsPerSide, 0));
+            _quadrantCache[0].assign(quadrantsPerSide, std::vector<uint32_t>(quadrantsPerSide, 0));
 
             for (uint32_t qy = 0; qy < quadrantsPerSide; ++qy)
             {
@@ -125,31 +126,40 @@ namespace OpenLoco::Vehicles::WaterBinaryMap
                             }
                         }
                     }
-                    _quadrantCache[finestLevel][qy][qx] = count;
+                    _quadrantCache[0][qy][qx] = count;
                 }
             }
 
             // Build coarser levels bottom-up
-            // Each coarser level quadrant = sum of 4 child quadrants
-            for (int32_t level = static_cast<int32_t>(finestLevel) - 1; level >= 0; --level)
+            // Each coarser level has half the quadrants per side
+            for (uint32_t level = 1; level < _numLevels; ++level)
             {
-                uint32_t numQuadrants = 1U << level; // 2^level quadrants per side at this level
+                uint32_t prevQuadrants = quadrantsPerSide >> (level - 1);
+                uint32_t numQuadrants = quadrantsPerSide >> level;
+                
+                if (numQuadrants == 0)
+                    numQuadrants = 1;
+
                 _quadrantCache[level].assign(numQuadrants, std::vector<uint32_t>(numQuadrants, 0));
 
                 for (uint32_t qy = 0; qy < numQuadrants; ++qy)
                 {
                     for (uint32_t qx = 0; qx < numQuadrants; ++qx)
                     {
-                        // Sum 4 children from level+1
+                        // Sum 4 children from level-1
                         uint32_t childX = qx * 2;
                         uint32_t childY = qy * 2;
-                        uint32_t childLevel = level + 1;
+                        uint32_t childLevel = level - 1;
 
                         uint32_t sum = 0;
-                        sum += _quadrantCache[childLevel][childY][childX];
-                        sum += _quadrantCache[childLevel][childY][childX + 1];
-                        sum += _quadrantCache[childLevel][childY + 1][childX];
-                        sum += _quadrantCache[childLevel][childY + 1][childX + 1];
+                        if (childY < prevQuadrants && childX < prevQuadrants)
+                            sum += _quadrantCache[childLevel][childY][childX];
+                        if (childY < prevQuadrants && childX + 1 < prevQuadrants)
+                            sum += _quadrantCache[childLevel][childY][childX + 1];
+                        if (childY + 1 < prevQuadrants && childX < prevQuadrants)
+                            sum += _quadrantCache[childLevel][childY + 1][childX];
+                        if (childY + 1 < prevQuadrants && childX + 1 < prevQuadrants)
+                            sum += _quadrantCache[childLevel][childY + 1][childX + 1];
 
                         _quadrantCache[level][qy][qx] = sum;
                     }
@@ -162,9 +172,10 @@ namespace OpenLoco::Vehicles::WaterBinaryMap
         // Get tiles per quadrant side at given level
         static uint32_t getTilesPerQuadrant(uint32_t level)
         {
-            // Level 0 = whole map = _paddedSize tiles
-            // Level numLevels-1 = 2 tiles per quadrant
-            return _paddedSize >> level;
+            // Level 0 = finest = 2 tiles per quadrant
+            // Level numLevels-1 = coarsest = whole map
+            // tilesPerQuad = 2^(level+1)
+            return 2U << level;
         }
 
         // Convert tile position to quadrant coordinates at given level
@@ -247,7 +258,12 @@ namespace OpenLoco::Vehicles::WaterBinaryMap
         if (level >= _numLevels)
             return 0;
 
-        uint32_t numQuadrants = 1U << level;
+        // Level 0 has _paddedSize/2 quadrants per side
+        // Each higher level has half as many
+        uint32_t numQuadrants = (_paddedSize / 2) >> level;
+        if (numQuadrants == 0)
+            numQuadrants = 1;
+            
         if (qx >= numQuadrants || qy >= numQuadrants)
             return 0;
 
@@ -291,8 +307,9 @@ namespace OpenLoco::Vehicles::WaterBinaryMap
         }
 
         // Choose pathfinding level based on distance
-        // For long distances, use coarser quadrants (faster)
-        // For shorter distances, use finer quadrants (more precise)
+        // Level 0 = 2x2 tiles, Level 1 = 4x4, Level 2 = 8x8, Level 3 = 16x16, Level 4 = 32x32...
+        // For long distances, use coarser quadrants (higher level, faster)
+        // For shorter distances, use finer quadrants (lower level, more precise)
         uint32_t pathLevel;
         int32_t distance = dx + dy;
         if (distance > 128)
@@ -301,14 +318,17 @@ namespace OpenLoco::Vehicles::WaterBinaryMap
         }
         else if (distance > 32)
         {
-            pathLevel = std::min(5U, _numLevels - 1); // 16x16 tile quadrants
+            pathLevel = std::min(3U, _numLevels - 1); // 16x16 tile quadrants
         }
         else
         {
-            pathLevel = std::min(6U, _numLevels - 1); // 8x8 tile quadrants
+            pathLevel = std::min(2U, _numLevels - 1); // 8x8 tile quadrants
         }
 
-        uint32_t numQuadrants = 1U << pathLevel;
+        // numQuadrants = _paddedSize / tilesPerQuad = _paddedSize / (2 << level)
+        uint32_t numQuadrants = (_paddedSize / 2) >> pathLevel;
+        if (numQuadrants == 0)
+            numQuadrants = 1;
 
         // Get start and end quadrants
         uint32_t startQx, startQy, endQx, endQy;
