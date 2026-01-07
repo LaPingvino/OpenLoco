@@ -2,6 +2,7 @@
 #include "Audio/Audio.h"
 #include "Config.h"
 #include "WaterBinaryMap.h"
+#include <OpenLoco/Diagnostics/Logging.h>
 #include "Date.h"
 #include "Economy/Economy.h"
 #include "Effects/Effect.h"
@@ -3813,8 +3814,11 @@ namespace OpenLoco::Vehicles
     {
         World::TilePos2 targetPos = {0, 0};
         std::vector<World::TilePos2> waypoints;
+        std::vector<World::TilePos2> fullPath;  // Complete tile-by-tile path for debug
         size_t currentWaypointIndex = 0;
         bool isValid = false;
+        uint8_t failureCount = 0; // Track consecutive tile-level A* failures
+        static constexpr uint8_t kMaxFailures = 10; // Invalidate path after this many failures
     };
     static std::unordered_map<EntityId, CachedBspPath> _cachedBspPaths;
 
@@ -3877,11 +3881,31 @@ namespace OpenLoco::Vehicles
 
             if (needsRecalc)
             {
+                Diagnostics::Logging::info("Ship {}: BSP pathfind from ({},{}) to ({},{}) dist={}",
+                    enumValue(head.id), initialTile.x, initialTile.y, 
+                    targetOrderPos.x, targetOrderPos.y, distanceToTarget);
+                
                 cachedPath.targetPos = targetOrderPos;
                 auto bspResult = WaterBinaryMap::findPath(initialTile, targetOrderPos, waterMicroZ);
                 cachedPath.waypoints = std::move(bspResult.waypoints);
+                cachedPath.fullPath = std::move(bspResult.fullPath);
                 cachedPath.currentWaypointIndex = 0;
                 cachedPath.isValid = bspResult.hasPath;
+                
+                if (cachedPath.isValid)
+                {
+                    Diagnostics::Logging::info("Ship {}: BSP path found with {} waypoints",
+                        enumValue(head.id), cachedPath.waypoints.size());
+                    for (size_t i = 0; i < cachedPath.waypoints.size(); ++i)
+                    {
+                        Diagnostics::Logging::info("  Waypoint {}: ({},{})", 
+                            i, cachedPath.waypoints[i].x, cachedPath.waypoints[i].y);
+                    }
+                }
+                else
+                {
+                    Diagnostics::Logging::warn("Ship {}: BSP path NOT found!", enumValue(head.id));
+                }
             }
 
             // If we have a valid BSP path, navigate to the current waypoint
@@ -3898,6 +3922,9 @@ namespace OpenLoco::Vehicles
 
                     if (wpDx + wpDy <= kWaypointReachedDistance)
                     {
+                        Diagnostics::Logging::info("Ship {}: Reached waypoint {} at ({},{})",
+                            enumValue(head.id), cachedPath.currentWaypointIndex,
+                            waypoint.x, waypoint.y);
                         cachedPath.currentWaypointIndex++;
                     }
                     else
@@ -3932,7 +3959,16 @@ namespace OpenLoco::Vehicles
                         const auto targetPos = toWorldSpace(initialTile) + kRotationOffset[bestResultDirection] + World::Pos2(16, 16);
                         return WaterPathingResult(targetPos);
                     }
-                    // If tile-level A* fails, fall through to vanilla pathfinding
+                    else
+                    {
+                        Diagnostics::Logging::warn("Ship {}: Tile A* to waypoint ({},{}) FAILED, falling back",
+                            enumValue(head.id), currentWaypoint.x, currentWaypoint.y);
+                    }
+                }
+                else
+                {
+                    Diagnostics::Logging::info("Ship {}: All waypoints reached, using vanilla pathfinding for final approach",
+                        enumValue(head.id));
                 }
             }
             // If BSP path invalid or exhausted, fall through to vanilla pathfinding
@@ -7286,5 +7322,20 @@ namespace OpenLoco::Vehicles
             sub_4A2AD7(pos, tad, head.owner, head.trackType);
         }
         return unkFlag;
+    }
+
+    // Get cached BSP path for a ship (for debug visualization)
+    std::optional<CachedBspPathInfo> getCachedBspPath(EntityId shipId)
+    {
+        auto it = _cachedBspPaths.find(shipId);
+        if (it != _cachedBspPaths.end() && it->second.isValid)
+        {
+            CachedBspPathInfo info;
+            info.waypoints = it->second.waypoints;
+            info.fullPath = it->second.fullPath;
+            info.currentWaypointIndex = it->second.currentWaypointIndex;
+            return info;
+        }
+        return std::nullopt;
     }
 }

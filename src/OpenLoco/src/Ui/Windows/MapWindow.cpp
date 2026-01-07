@@ -45,6 +45,7 @@
 #include "Vehicles/VehicleBogie.h"
 #include "Vehicles/VehicleHead.h"
 #include "Vehicles/VehicleManager.h"
+#include "Vehicles/WaterBinaryMap.h"
 #include "World/CompanyManager.h"
 #include "World/IndustryManager.h"
 #include "World/StationManager.h"
@@ -107,6 +108,7 @@ namespace OpenLoco::Ui::Windows::MapWindow
         tabIndustries,
         tabRoutes,
         tabOwnership,
+        tabBspDebug,
         scrollview,
         statusBar,
     };
@@ -120,7 +122,8 @@ namespace OpenLoco::Ui::Windows::MapWindow
         Widgets::Tab({ 34, 15 }, { 31, 27 }, WindowColour::secondary, ImageIds::tab, StringIds::tab_map_vehicles),
         Widgets::Tab({ 65, 15 }, { 31, 27 }, WindowColour::secondary, ImageIds::tab, StringIds::tab_map_industries),
         Widgets::Tab({ 96, 15 }, { 31, 27 }, WindowColour::secondary, ImageIds::tab, StringIds::tab_map_routes),
-        Widgets::Tab({ 158, 15 }, { 31, 27 }, WindowColour::secondary, ImageIds::tab, StringIds::tab_map_ownership),
+        Widgets::Tab({ 127, 15 }, { 31, 27 }, WindowColour::secondary, ImageIds::tab, StringIds::tab_map_ownership),
+        Widgets::Tab({ 158, 15 }, { 31, 27 }, WindowColour::secondary, ImageIds::tab, StringIds::tab_map_overall), // BSP Debug tab - reusing overall tooltip
         Widgets::ScrollView({ 3, 44 }, { 240, 215 }, WindowColour::secondary, Scrollbars::horizontal | Scrollbars::vertical),
         Widgets::Label({ 3, 250 }, { 322, 21 }, WindowColour::secondary, ContentAlign::center)
 
@@ -203,6 +206,7 @@ namespace OpenLoco::Ui::Windows::MapWindow
             case widx::tabIndustries:
             case widx::tabRoutes:
             case widx::tabOwnership:
+            case widx::tabBspDebug:
             case widx::scrollview:
             {
                 auto tabIndex = widgetIndex - widx::tabOverall;
@@ -1004,13 +1008,14 @@ namespace OpenLoco::Ui::Windows::MapWindow
     static uint8_t legendItemHeight = 10;
     static constexpr uint8_t kOverallGraphKeySize = 6;
 
-    static std::array<size_t, 5> legendLengths = {
+    static std::array<size_t, 6> legendLengths = {
         {
             kOverallGraphKeySize,
             std::size(_vehicleTypeCounts),
             ObjectManager::getMaxObjects(ObjectType::industry),
             0,
             Limits::kMaxCompanies,
+            0, // BSP Debug tab - no legend
         }
     };
 
@@ -1179,12 +1184,13 @@ namespace OpenLoco::Ui::Windows::MapWindow
             StringIds::title_map_industries,
             StringIds::title_map_routes,
             StringIds::title_map_companies,
+            StringIds::title_map, // BSP Debug tab - reuse "Map" title
         };
 
         self.widgets[widx::caption].text = captionText[self.currentTab];
 
         auto activatedWidgets = self.activatedWidgets;
-        activatedWidgets &= ~((1ULL << widx::statusBar) | (1ULL << widx::scrollview) | (1ULL << widx::tabOwnership) | (1ULL << widx::tabRoutes) | (1ULL << widx::tabIndustries) | (1ULL << widx::tabVehicles) | (1ULL << widx::tabOverall));
+        activatedWidgets &= ~((1ULL << widx::statusBar) | (1ULL << widx::scrollview) | (1ULL << widx::tabBspDebug) | (1ULL << widx::tabOwnership) | (1ULL << widx::tabRoutes) | (1ULL << widx::tabIndustries) | (1ULL << widx::tabVehicles) | (1ULL << widx::tabOverall));
 
         auto currentWidget = self.currentTab + widx::tabOverall;
         activatedWidgets |= (1ULL << currentWidget);
@@ -1214,7 +1220,7 @@ namespace OpenLoco::Ui::Windows::MapWindow
 
         self.disabledWidgets = disabledWidgets;
 
-        Widget::leftAlignTabs(self, widx::tabOverall, widx::tabOwnership);
+        Widget::leftAlignTabs(self, widx::tabOverall, widx::tabBspDebug);
     }
 
     // 0x0046D0E0
@@ -1317,6 +1323,14 @@ namespace OpenLoco::Ui::Windows::MapWindow
 
                 Widget::drawTab(self, drawingCtx, imageId, widx::tabOwnership);
             }
+        }
+
+        // tabBspDebug - use wrench icon for debug
+        {
+            uint32_t imageId = skin->img;
+            imageId += InterfaceSkin::ImageIds::tab_wrench_frame0;
+
+            Widget::drawTab(self, drawingCtx, imageId, widx::tabBspDebug);
         }
     }
 
@@ -2153,6 +2167,147 @@ namespace OpenLoco::Ui::Windows::MapWindow
         }
     }
 
+    // Convert tile coordinates to minimap coordinates (handles isometric projection)
+    static Point tileToMinimapPos(int16_t tileX, int16_t tileY)
+    {
+        // The minimap is isometric: each tile maps to a diamond
+        // The formula matches locationToMapWindowPos but works directly with tile coords
+        int32_t x = tileX;
+        int32_t y = tileY;
+
+        switch (getCurrentRotation())
+        {
+            case 3:
+                std::swap(x, y);
+                x = kMapColumns - 1 - x;
+                break;
+            case 2:
+                x = kMapColumns - 1 - x;
+                y = kMapRows - 1 - y;
+                break;
+            case 1:
+                std::swap(x, y);
+                y = kMapRows - 1 - y;
+                break;
+            case 0:
+            default:
+                break;
+        }
+
+        // Isometric projection: each tile is 2 pixels wide, 1 pixel tall on minimap
+        return Point(-x + y + kMapColumns, x + y);
+    }
+
+    // Draw the full tile-by-tile path for all ships (BSP debug overlay)
+    static void drawBspDebugOverlay(Gfx::DrawingContext& drawingCtx)
+    {
+        // Only draw the calculated paths, not the quadrant grid
+        for (auto* vehicle : VehicleManager::VehicleList())
+        {
+            if (vehicle->vehicleType != VehicleType::ship)
+                continue;
+
+            Vehicles::Vehicle train(*vehicle);
+            auto* head = train.head;
+
+            // Get cached path info
+            auto cachedPath = Vehicles::getCachedBspPath(head->id);
+            if (!cachedPath.has_value() || cachedPath->fullPath.empty())
+                continue;
+
+            const auto& fullPath = cachedPath->fullPath;
+
+            // Draw the full tile-by-tile path as a line
+            for (size_t i = 1; i < fullPath.size(); ++i)
+            {
+                Point prevPos = tileToMinimapPos(fullPath[i - 1].x, fullPath[i - 1].y);
+                Point currPos = tileToMinimapPos(fullPath[i].x, fullPath[i].y);
+
+                // Draw path segment in light blue
+                drawingCtx.drawLine(prevPos, currPos, PaletteIndex::blue5);
+            }
+
+            // Draw waypoints as larger markers on top of the path
+            const auto& waypoints = cachedPath->waypoints;
+            for (size_t i = 0; i < waypoints.size(); ++i)
+            {
+                Point wpPos = tileToMinimapPos(waypoints[i].x, waypoints[i].y);
+
+                // Draw waypoint marker (small cross)
+                PaletteIndex_t colour = (i < cachedPath->currentWaypointIndex) 
+                    ? PaletteIndex::grey3  // Already passed
+                    : PaletteIndex::yellow8;  // Upcoming
+                
+                drawingCtx.drawLine(Point(wpPos.x - 2, wpPos.y), Point(wpPos.x + 2, wpPos.y), colour);
+                drawingCtx.drawLine(Point(wpPos.x, wpPos.y - 2), Point(wpPos.x, wpPos.y + 2), colour);
+            }
+        }
+    }
+
+    // Draw ship pathfinding waypoints for all ships
+    static void drawShipPathsOverlay(Gfx::DrawingContext& drawingCtx)
+    {
+        for (auto* vehicle : VehicleManager::VehicleList())
+        {
+            if (vehicle->vehicleType != VehicleType::ship)
+                continue;
+
+            Vehicles::Vehicle train(*vehicle);
+            auto* head = train.head;
+
+            // Get ship position in tile coordinates
+            int16_t tileX = head->position.x / kTileSize;
+            int16_t tileY = head->position.y / kTileSize;
+            Point shipPos = tileToMinimapPos(tileX, tileY);
+
+            // Draw ship as a bright marker (small diamond shape)
+            drawingCtx.drawLine(Point(shipPos.x, shipPos.y - 3), Point(shipPos.x + 3, shipPos.y), PaletteIndex::orange8);
+            drawingCtx.drawLine(Point(shipPos.x + 3, shipPos.y), Point(shipPos.x, shipPos.y + 3), PaletteIndex::orange8);
+            drawingCtx.drawLine(Point(shipPos.x, shipPos.y + 3), Point(shipPos.x - 3, shipPos.y), PaletteIndex::orange8);
+            drawingCtx.drawLine(Point(shipPos.x - 3, shipPos.y), Point(shipPos.x, shipPos.y - 3), PaletteIndex::orange8);
+
+            // Get and draw the cached BSP path for this ship
+            auto cachedPath = Vehicles::getCachedBspPath(head->id);
+            if (cachedPath.has_value())
+            {
+                const auto& waypoints = cachedPath->waypoints;
+                size_t currentIdx = cachedPath->currentWaypointIndex;
+
+                if (!waypoints.empty())
+                {
+                    // Draw line from ship to first remaining waypoint
+                    Point prevPos = shipPos;
+                    
+                    for (size_t i = currentIdx; i < waypoints.size(); ++i)
+                    {
+                        Point wpPos = tileToMinimapPos(waypoints[i].x, waypoints[i].y);
+                        
+                        // Draw connecting line (bright blue for upcoming path)
+                        drawingCtx.drawLine(prevPos, wpPos, PaletteIndex::mutedSeaGreen8);
+                        
+                        // Draw waypoint marker
+                        if (i == currentIdx)
+                        {
+                            // Current target waypoint - bright magenta
+                            drawingCtx.drawLine(Point(wpPos.x - 2, wpPos.y - 2), Point(wpPos.x + 2, wpPos.y + 2), PaletteIndex::purple8);
+                            drawingCtx.drawLine(Point(wpPos.x - 2, wpPos.y + 2), Point(wpPos.x + 2, wpPos.y - 2), PaletteIndex::purple8);
+                        }
+                        else
+                        {
+                            // Future waypoints - smaller teal dot
+                            drawingCtx.drawLine(Point(wpPos.x - 1, wpPos.y), Point(wpPos.x + 1, wpPos.y), PaletteIndex::mutedSeaGreen8);
+                            drawingCtx.drawLine(Point(wpPos.x, wpPos.y - 1), Point(wpPos.x, wpPos.y + 1), PaletteIndex::mutedSeaGreen8);
+                        }
+                        
+                        prevPos = wpPos;
+                    }
+                }
+            }
+        }
+    }
+
+
+
     // 0x0046B806
     static void drawScroll(Window& self, Gfx::DrawingContext& drawingCtx, [[maybe_unused]] const uint32_t scrollIndex)
     {
@@ -2195,6 +2350,13 @@ namespace OpenLoco::Ui::Windows::MapWindow
         if (self.showTownNames)
         {
             drawTownNames(drawingCtx);
+        }
+
+        // Draw BSP pathfinding debug overlay when on BSP debug tab
+        if (self.currentTab + widx::tabOverall == widx::tabBspDebug)
+        {
+            drawBspDebugOverlay(drawingCtx);
+            drawShipPathsOverlay(drawingCtx);
         }
     }
 

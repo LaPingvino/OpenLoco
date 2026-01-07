@@ -10,7 +10,8 @@ namespace OpenLoco::Vehicles::WaterBinaryMap
     struct PathResult
     {
         bool hasPath;
-        std::vector<World::TilePos2> waypoints;
+        std::vector<World::TilePos2> waypoints;   // Simplified waypoints (every N tiles)
+        std::vector<World::TilePos2> fullPath;    // Complete tile-by-tile path for debug
     };
 
     // Lifecycle management

@@ -1,5 +1,7 @@
 #pragma once
 #include "Vehicle.h"
+#include <optional>
+#include <vector>
 
 namespace OpenLoco::Vehicles
 {
@@ -169,4 +171,15 @@ namespace OpenLoco::Vehicles
         void calculateRefundCost();
     };
     static_assert(sizeof(VehicleHead) <= sizeof(Entity));
+
+    // Debug info for cached BSP path visualization
+    struct CachedBspPathInfo
+    {
+        std::vector<World::TilePos2> waypoints;   // Simplified waypoints
+        std::vector<World::TilePos2> fullPath;    // Complete tile-by-tile path
+        size_t currentWaypointIndex;
+    };
+
+    // Get cached BSP path for a ship (for debug visualization)
+    std::optional<CachedBspPathInfo> getCachedBspPath(EntityId shipId);
 }

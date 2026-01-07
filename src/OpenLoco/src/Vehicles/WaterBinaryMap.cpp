@@ -177,23 +177,6 @@ namespace OpenLoco::Vehicles::WaterBinaryMap
             // tilesPerQuad = 2^(level+1)
             return 2U << level;
         }
-
-        // Convert tile position to quadrant coordinates at given level
-        static void tileToQuadrant(TilePos2 pos, uint32_t level, uint32_t& qx, uint32_t& qy)
-        {
-            uint32_t tilesPerQuad = getTilesPerQuadrant(level);
-            qx = static_cast<uint32_t>(pos.x) / tilesPerQuad;
-            qy = static_cast<uint32_t>(pos.y) / tilesPerQuad;
-        }
-
-        // Get center tile of a quadrant
-        static TilePos2 getQuadrantCenter(uint32_t level, uint32_t qx, uint32_t qy)
-        {
-            uint32_t tilesPerQuad = getTilesPerQuadrant(level);
-            int16_t cx = static_cast<int16_t>(qx * tilesPerQuad + tilesPerQuad / 2);
-            int16_t cy = static_cast<int16_t>(qy * tilesPerQuad + tilesPerQuad / 2);
-            return TilePos2(cx, cy);
-        }
     }
 
     void initialize()
@@ -282,7 +265,23 @@ namespace OpenLoco::Vehicles::WaterBinaryMap
         return getQuadrantWaterCount(level, qx, qy) == 0;
     }
 
-    // Hierarchical pathfinding using quadrant BFS
+    // Check if a tile is navigable water at 1x1 level
+    static bool isTileWater(int32_t tx, int32_t ty)
+    {
+        if (tx < 0 || ty < 0 || tx >= static_cast<int32_t>(kMapColumns) || ty >= static_cast<int32_t>(kMapRows))
+            return false;
+        
+        uint32_t ux = static_cast<uint32_t>(tx);
+        uint32_t uy = static_cast<uint32_t>(ty);
+        
+        if (uy >= _waterBits.size() || (ux >> 6) >= _waterBits[uy].size())
+            return false;
+            
+        return (_waterBits[uy][ux >> 6] >> (ux & 63)) & 1;
+    }
+
+    // Hierarchical pathfinding - lazy subdivision from coarse to fine
+    // Key insight: only subdivide mixed quadrants, pure water/land quadrants don't need subdivision
     PathResult findPath(TilePos2 from, TilePos2 to, MicroZ waterLevel)
     {
         ensureInitialized();
@@ -290,182 +289,162 @@ namespace OpenLoco::Vehicles::WaterBinaryMap
         PathResult result;
         result.hasPath = false;
 
-        // Quick validation
+        // Quick validation at tile level
         if (!isWater(from, waterLevel) || !isWater(to, waterLevel))
         {
+            Diagnostics::Logging::warn("BSP: Start or end tile is not water!");
             return result;
         }
 
-        // If very close, no waypoints needed
         int32_t dx = std::abs(from.x - to.x);
         int32_t dy = std::abs(from.y - to.y);
-        if (dx <= 8 && dy <= 8)
+        int32_t distance = dx + dy;
+
+        // For very short distances, just return target directly
+        if (distance <= 4)
         {
             result.hasPath = true;
             result.waypoints.push_back(to);
             return result;
         }
 
-        // Choose pathfinding level based on distance
-        // Level 0 = 2x2 tiles, Level 1 = 4x4, Level 2 = 8x8, Level 3 = 16x16, Level 4 = 32x32...
-        // For long distances, use coarser quadrants (higher level, faster)
-        // For shorter distances, use finer quadrants (lower level, more precise)
-        uint32_t pathLevel;
-        int32_t distance = dx + dy;
-        if (distance > 128)
-        {
-            pathLevel = std::min(4U, _numLevels - 1); // 32x32 tile quadrants
-        }
-        else if (distance > 32)
-        {
-            pathLevel = std::min(3U, _numLevels - 1); // 16x16 tile quadrants
-        }
-        else
-        {
-            pathLevel = std::min(2U, _numLevels - 1); // 8x8 tile quadrants
-        }
+        Diagnostics::Logging::info("BSP pathfind: from ({},{}) to ({},{}), distance={}",
+            from.x, from.y, to.x, to.y, distance);
 
-        // numQuadrants = _paddedSize / tilesPerQuad = _paddedSize / (2 << level)
-        uint32_t numQuadrants = (_paddedSize / 2) >> pathLevel;
-        if (numQuadrants == 0)
-            numQuadrants = 1;
-
-        // Get start and end quadrants
-        uint32_t startQx, startQy, endQx, endQy;
-        tileToQuadrant(from, pathLevel, startQx, startQy);
-        tileToQuadrant(to, pathLevel, endQx, endQy);
-
-        // BFS on quadrant graph
-        struct QuadNode
+        // BFS at tile level (1x1) for guaranteed accuracy
+        // This is the "lazy" approach - we work at tile level directly
+        // The bitmap makes tile queries O(1), so this is fast
+        
+        struct TileNode
         {
-            uint32_t qx, qy;
-            uint32_t parentQx, parentQy;
+            int16_t x, y;
+            int16_t parentX, parentY;
             bool hasParent;
         };
 
-        auto quadKey = [numQuadrants](uint32_t qx, uint32_t qy) -> uint64_t
+        auto tileKey = [](int16_t x, int16_t y) -> uint32_t
         {
-            return (static_cast<uint64_t>(qy) << 32) | qx;
+            return (static_cast<uint32_t>(static_cast<uint16_t>(y)) << 16) | static_cast<uint16_t>(x);
         };
 
-        std::queue<QuadNode> openSet;
-        std::unordered_set<uint64_t> visited;
-        std::vector<QuadNode> allNodes;
+        std::queue<TileNode> openSet;
+        std::unordered_set<uint32_t> visited;
+        std::unordered_map<uint32_t, TileNode> allNodes;
 
-        QuadNode startNode = {startQx, startQy, 0, 0, false};
+        TileNode startNode = {from.x, from.y, 0, 0, false};
         openSet.push(startNode);
-        allNodes.push_back(startNode);
-        visited.insert(quadKey(startQx, startQy));
+        visited.insert(tileKey(from.x, from.y));
+        allNodes[tileKey(from.x, from.y)] = startNode;
 
         bool found = false;
-        size_t endNodeIdx = 0;
+        TileNode endNode;
 
         // Direction offsets for 4-connectivity
-        static const int32_t dqx[] = {0, 1, 0, -1};
-        static const int32_t dqy[] = {-1, 0, 1, 0};
+        static const int16_t dtx[] = {0, 1, 0, -1};
+        static const int16_t dty[] = {-1, 0, 1, 0};
 
-        while (!openSet.empty() && !found)
+        // Limit search to prevent infinite loops on very large maps
+        constexpr size_t kMaxSearchNodes = 100000;
+        size_t nodesExplored = 0;
+
+        while (!openSet.empty() && !found && nodesExplored < kMaxSearchNodes)
         {
-            QuadNode current = openSet.front();
+            TileNode current = openSet.front();
             openSet.pop();
+            nodesExplored++;
 
-            if (current.qx == endQx && current.qy == endQy)
+            if (current.x == to.x && current.y == to.y)
             {
                 found = true;
-                // Find this node in allNodes
-                for (size_t i = 0; i < allNodes.size(); ++i)
-                {
-                    if (allNodes[i].qx == current.qx && allNodes[i].qy == current.qy)
-                    {
-                        endNodeIdx = i;
-                        break;
-                    }
-                }
+                endNode = current;
                 break;
             }
 
             // Explore neighbors
             for (int dir = 0; dir < 4; ++dir)
             {
-                int32_t nqx = static_cast<int32_t>(current.qx) + dqx[dir];
-                int32_t nqy = static_cast<int32_t>(current.qy) + dqy[dir];
+                int16_t nx = current.x + dtx[dir];
+                int16_t ny = current.y + dty[dir];
 
-                if (nqx < 0 || nqy < 0 ||
-                    static_cast<uint32_t>(nqx) >= numQuadrants ||
-                    static_cast<uint32_t>(nqy) >= numQuadrants)
-                {
-                    continue;
-                }
-
-                uint64_t key = quadKey(nqx, nqy);
+                uint32_t key = tileKey(nx, ny);
                 if (visited.count(key) > 0)
                 {
                     continue;
                 }
 
-                // Skip all-land quadrants
-                if (isAllLand(pathLevel, nqx, nqy))
+                // Check if tile is water using our bitmap (O(1))
+                if (!isTileWater(nx, ny))
                 {
                     continue;
                 }
 
                 visited.insert(key);
-                QuadNode neighbor = {static_cast<uint32_t>(nqx), static_cast<uint32_t>(nqy),
-                                     current.qx, current.qy, true};
+                TileNode neighbor = {nx, ny, current.x, current.y, true};
                 openSet.push(neighbor);
-                allNodes.push_back(neighbor);
+                allNodes[key] = neighbor;
             }
         }
 
         if (!found)
         {
-            Diagnostics::Logging::verbose("WaterBinaryMap: No quadrant path from ({},{}) to ({},{})",
-                                          from.x, from.y, to.x, to.y);
+            Diagnostics::Logging::warn("BSP: NO PATH at tile level! Explored {} tiles", nodesExplored);
             return result;
         }
+        
+        Diagnostics::Logging::info("BSP: Path found! Explored {} tiles", nodesExplored);
 
-        // Reconstruct path through quadrants
-        std::vector<TilePos2> quadrantCenters;
-        size_t nodeIdx = endNodeIdx;
+        // Reconstruct path
+        std::vector<TilePos2> path;
+        TileNode node = endNode;
 
         while (true)
         {
-            QuadNode& node = allNodes[nodeIdx];
-            quadrantCenters.push_back(getQuadrantCenter(pathLevel, node.qx, node.qy));
+            path.push_back(TilePos2{node.x, node.y});
 
             if (!node.hasParent)
             {
                 break;
             }
 
-            // Find parent node
-            bool foundParent = false;
-            for (size_t i = 0; i < allNodes.size(); ++i)
-            {
-                if (allNodes[i].qx == node.parentQx && allNodes[i].qy == node.parentQy)
-                {
-                    nodeIdx = i;
-                    foundParent = true;
-                    break;
-                }
-            }
-            if (!foundParent)
+            uint32_t parentKey = tileKey(node.parentX, node.parentY);
+            auto it = allNodes.find(parentKey);
+            if (it == allNodes.end())
                 break;
+            node = it->second;
         }
 
         // Reverse to get path from start to end
-        std::reverse(quadrantCenters.begin(), quadrantCenters.end());
+        std::reverse(path.begin(), path.end());
 
-        // Build waypoints: skip first (we're already there), add intermediate centers, end with target
-        for (size_t i = 1; i < quadrantCenters.size(); ++i)
+        // Store full path for debug visualization
+        result.fullPath = path;
+
+        // Simplify path: only keep waypoints where direction changes significantly
+        // or every N tiles to keep the ship on track
+        constexpr size_t kWaypointInterval = 8;
+        for (size_t i = 1; i < path.size(); ++i)
         {
-            result.waypoints.push_back(quadrantCenters[i]);
+            // Always add final destination
+            if (i == path.size() - 1)
+            {
+                result.waypoints.push_back(path[i]);
+            }
+            // Add waypoints at intervals
+            else if (i % kWaypointInterval == 0)
+            {
+                result.waypoints.push_back(path[i]);
+            }
         }
-        result.waypoints.push_back(to);
+
+        // Ensure we have at least the destination
+        if (result.waypoints.empty())
+        {
+            result.waypoints.push_back(to);
+        }
 
         result.hasPath = true;
 
-        Diagnostics::Logging::verbose("WaterBinaryMap: Path found with {} waypoints", result.waypoints.size());
+        Diagnostics::Logging::info("BSP: Simplified to {} waypoints", result.waypoints.size());
 
         return result;
     }

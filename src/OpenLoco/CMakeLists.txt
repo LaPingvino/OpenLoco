@@ -738,6 +738,7 @@ set(private_link_libraries
     $<$<PLATFORM_ID:Windows>:Resources>
     $<$<BOOL:${MINGW}>:imm32>
     $<$<BOOL:${MINGW}>:version>
+    $<$<PLATFORM_ID:Linux>:tbb>
 )
 
 set(msvc_private_compile_definitions
