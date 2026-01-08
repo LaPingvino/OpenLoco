@@ -29,6 +29,13 @@ namespace OpenLoco::Vehicles::WaterBinaryMap
 
         static bool _initialized = false;
         static bool _dirty = true;
+        
+        // Periodic refresh tracking
+        static uint32_t _ticksSinceRefresh = 0;
+        static uint32_t _ticksAtGoodFps = 0;  // Ticks at 30+ FPS in current period
+        static constexpr uint32_t kTicksPerMinute = 60 * 60; // 60 ticks/sec * 60 sec
+        static constexpr uint32_t kFastRefreshInterval = kTicksPerMinute; // 1 minute
+        static constexpr uint32_t kSlowRefreshInterval = kTicksPerMinute * 10; // 10 minutes
 
         // Compute next power of 2 >= v
         static uint32_t nextPowerOf2(uint32_t v)
@@ -210,6 +217,43 @@ namespace OpenLoco::Vehicles::WaterBinaryMap
         _numLevels = 0;
         _initialized = false;
         _dirty = true;
+        _ticksSinceRefresh = 0;
+        _ticksAtGoodFps = 0;
+    }
+    
+    void updatePeriodicRefresh()
+    {
+        if (!_initialized)
+            return;
+            
+        _ticksSinceRefresh++;
+        
+        // Check if we should refresh based on FPS
+        // Assume if we're being called every tick, FPS is decent (30+)
+        // This is a simple heuristic - if the game is running, we count it as good FPS
+        _ticksAtGoodFps++;
+        
+        bool shouldRefresh = false;
+        
+        // If running at good FPS for the whole period, refresh every minute
+        if (_ticksAtGoodFps >= kFastRefreshInterval && _ticksSinceRefresh >= kFastRefreshInterval)
+        {
+            Diagnostics::Logging::info("WaterBinaryMap: Periodic refresh (1 min at good FPS)");
+            shouldRefresh = true;
+        }
+        // Otherwise refresh every 10 minutes
+        else if (_ticksSinceRefresh >= kSlowRefreshInterval)
+        {
+            Diagnostics::Logging::info("WaterBinaryMap: Periodic refresh (10 min)");
+            shouldRefresh = true;
+        }
+        
+        if (shouldRefresh)
+        {
+            markDirty();
+            _ticksSinceRefresh = 0;
+            _ticksAtGoodFps = 0;
+        }
     }
 
     bool isWater(TilePos2 pos, [[maybe_unused]] MicroZ waterLevel)

@@ -19,6 +19,9 @@ namespace OpenLoco::Vehicles::WaterBinaryMap
     void ensureInitialized();
     void markDirty();
     void reset();
+    
+    // Periodic refresh tracking (call every game tick)
+    void updatePeriodicRefresh();
 
     // Single tile water query - O(1) bit lookup
     bool isWater(World::TilePos2 pos, World::MicroZ waterLevel);
