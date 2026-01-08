@@ -69,7 +69,6 @@
 #include "Ui/WindowManager.h"
 #include "Vehicles/Vehicle.h"
 #include "Vehicles/VehicleManager.h"
-#include "Vehicles/WaterBinaryMap.h"
 #include "ViewportManager.h"
 #include "World/CompanyManager.h"
 #include "World/IndustryManager.h"
@@ -445,7 +444,6 @@ namespace OpenLoco
         TownManager::update();
         IndustryManager::update();
         VehicleManager::update();
-        Vehicles::WaterBinaryMap::update();
         StationManager::update();
         EffectsManager::update();
         CompanyManager::update();

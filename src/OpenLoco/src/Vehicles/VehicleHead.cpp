@@ -3905,8 +3905,6 @@ namespace OpenLoco::Vehicles
                 else
                 {
                     Diagnostics::Logging::warn("Ship {}: BSP path NOT found!", enumValue(head.id));
-                    // Trigger a refresh around the ship's position in case terrain changed
-                    WaterBinaryMap::refreshAroundPosition(initialTile);
                 }
             }
 
@@ -3993,8 +3991,6 @@ namespace OpenLoco::Vehicles
 
         if (bestResultDirection == 0xFF)
         {
-            // Ship is stuck - trigger refresh around current position
-            WaterBinaryMap::refreshAroundPosition(initialTile);
             return WaterPathingResult(toWorldSpace(initialTile) + World::Pos2(16, 16));
         }
 
