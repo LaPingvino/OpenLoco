@@ -19,6 +19,12 @@ namespace OpenLoco::Vehicles::WaterBinaryMap
     void ensureInitialized();
     void markDirty();
     void reset();
+    
+    // Incremental update (call every frame)
+    void update();
+    
+    // Trigger local refresh around a position (e.g., when ship gets stuck)
+    void refreshAroundPosition(World::TilePos2 pos);
 
     // Single tile water query - O(1) bit lookup
     bool isWater(World::TilePos2 pos, World::MicroZ waterLevel);
@@ -34,4 +40,7 @@ namespace OpenLoco::Vehicles::WaterBinaryMap
     // Debug/info
     uint32_t getPaddedSize();
     uint32_t getNumLevels();
+    
+    // Debug visualization: get recently updated tiles (for blinking on minimap)
+    std::vector<World::TilePos2> getRecentlyUpdatedTiles(uint32_t maxAgeTicks = 5);
 }

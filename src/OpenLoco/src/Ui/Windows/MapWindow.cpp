@@ -2201,6 +2201,15 @@ namespace OpenLoco::Ui::Windows::MapWindow
     // Draw the full tile-by-tile path for all ships (BSP debug overlay)
     static void drawBspDebugOverlay(Gfx::DrawingContext& drawingCtx)
     {
+        // Draw recently updated tiles (blinking markers to show incremental refresh)
+        auto recentUpdates = Vehicles::WaterBinaryMap::getRecentlyUpdatedTiles(5);
+        for (const auto& tile : recentUpdates)
+        {
+            Point pos = tileToMinimapPos(tile.x, tile.y);
+            // Draw small bright pixel to show update activity (bright green)
+            drawingCtx.fillRect(pos.x, pos.y, pos.x + 1, pos.y + 1, PaletteIndex::green8, Gfx::RectFlags::none);
+        }
+        
         // Only draw the calculated paths, not the quadrant grid
         for (auto* vehicle : VehicleManager::VehicleList())
         {

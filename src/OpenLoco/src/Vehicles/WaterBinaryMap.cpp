@@ -29,6 +29,36 @@ namespace OpenLoco::Vehicles::WaterBinaryMap
 
         static bool _initialized = false;
         static bool _dirty = true;
+        
+        // Incremental update state - continuous spiral pattern
+        static int32_t _updateSpiralX = 0;
+        static int32_t _updateSpiralY = 0;
+        static int32_t _updateSpiralRadius = 0;
+        static int32_t _updateSpiralSide = 0; // 0=right, 1=down, 2=left, 3=up
+        static int32_t _updateSpiralSteps = 0;
+        
+        // Priority spirals (e.g., when ship gets stuck)
+        struct PrioritySpiral
+        {
+            int32_t centerX, centerY;
+            int32_t currentX, currentY;
+            int32_t radius;
+            int32_t side;
+            int32_t steps;
+            int32_t maxRadius;
+            uint32_t tickCreated; // To prevent re-triggering too soon
+        };
+        static std::vector<PrioritySpiral> _prioritySpirals;
+        static uint32_t _currentTick = 0;
+        
+        // Debug: track recently updated tiles for visualization
+        struct RecentUpdate
+        {
+            int16_t x, y;
+            uint32_t tick;
+        };
+        static std::vector<RecentUpdate> _recentUpdates;
+        constexpr size_t kMaxRecentUpdates = 64; // Track last 64 tiles updated
 
         // Compute next power of 2 >= v
         static uint32_t nextPowerOf2(uint32_t v)
@@ -177,6 +207,131 @@ namespace OpenLoco::Vehicles::WaterBinaryMap
             // tilesPerQuad = 2^(level+1)
             return 2U << level;
         }
+        
+        // Update a single tile in the bitmap and affected quadrants
+        static void updateTile(int16_t x, int16_t y)
+        {
+            if (x < 0 || y < 0 || x >= kMapColumns || y >= kMapRows)
+                return;
+                
+            if (!_initialized)
+                return;
+            
+            // Track this update for debug visualization
+            if (_recentUpdates.size() >= kMaxRecentUpdates)
+            {
+                _recentUpdates.erase(_recentUpdates.begin());
+            }
+            _recentUpdates.push_back({x, y, _currentTick});
+            
+            // Check current water state
+            auto tile = TileManager::get(TilePos2(x, y));
+            auto* surface = tile.surface();
+            bool hasWater = (surface != nullptr && surface->water() > 0);
+            
+            // Get current bit state
+            uint32_t ux = static_cast<uint32_t>(x);
+            uint32_t uy = static_cast<uint32_t>(y);
+            uint32_t wordIdx = ux >> 6;
+            uint32_t bitIdx = ux & 63;
+            
+            if (uy >= _waterBits.size() || wordIdx >= _waterBits[uy].size())
+                return;
+                
+            bool currentBit = (_waterBits[uy][wordIdx] >> bitIdx) & 1;
+            
+            // If unchanged, skip
+            if (currentBit == hasWater)
+                return;
+            
+            // Update bitmap
+            if (hasWater)
+            {
+                _waterBits[uy][wordIdx] |= (1ULL << bitIdx);
+            }
+            else
+            {
+                _waterBits[uy][wordIdx] &= ~(1ULL << bitIdx);
+            }
+            
+            // Update quadrant cache
+            // Start from finest level (level 0) and propagate up
+            int32_t delta = hasWater ? 1 : -1;
+            
+            for (uint32_t level = 0; level < _numLevels; ++level)
+            {
+                uint32_t tilesPerQuad = getTilesPerQuadrant(level);
+                uint32_t qx = ux / tilesPerQuad;
+                uint32_t qy = uy / tilesPerQuad;
+                
+                if (qy >= _quadrantCache[level].size() || qx >= _quadrantCache[level][qy].size())
+                    break;
+                    
+                // Apply delta
+                if (delta > 0)
+                {
+                    _quadrantCache[level][qy][qx]++;
+                }
+                else if (_quadrantCache[level][qy][qx] > 0)
+                {
+                    _quadrantCache[level][qy][qx]--;
+                }
+            }
+        }
+        
+        // Advance spiral by one step, returns true if still valid
+        static bool advanceSpiral(int32_t& offsetX, int32_t& offsetY, 
+                                 int32_t& radius, int32_t& side, int32_t& steps, int32_t maxRadius)
+        {
+            if (radius > maxRadius)
+                return false;
+                
+            // For radius 0, just process center
+            if (radius == 0)
+            {
+                offsetX = 0;
+                offsetY = 0;
+                radius = 1;
+                offsetX = -1;
+                offsetY = -1;
+                side = 0;
+                steps = 0;
+                return true;
+            }
+            
+            // Move one step in current direction
+            switch (side)
+            {
+                case 0: offsetX++; break; // right
+                case 1: offsetY++; break; // down
+                case 2: offsetX--; break; // left
+                case 3: offsetY--; break; // up
+            }
+            
+            steps++;
+            
+            // Check if we need to turn (spiral pattern logic)
+            int32_t stepsInSide = (side == 0 || side == 2) ? (radius * 2) : (radius * 2);
+            
+            if (steps >= stepsInSide)
+            {
+                steps = 0;
+                side++;
+                
+                if (side >= 4)
+                {
+                    side = 0;
+                    radius++;
+                    offsetX = -radius;
+                    offsetY = -radius;
+                    
+                    if (radius > maxRadius)
+                        return false;
+                }
+            }
+            
+            return true;
+        }
     }
 
     void initialize()
@@ -186,6 +341,13 @@ namespace OpenLoco::Vehicles::WaterBinaryMap
         buildQuadrantCache();
         _initialized = true;
         _dirty = false;
+        
+        // Initialize background spiral from center of map
+        _updateSpiralX = kMapColumns / 2;
+        _updateSpiralY = kMapRows / 2;
+        _updateSpiralRadius = 0;
+        _updateSpiralSide = 0;
+        _updateSpiralSteps = 0;
     }
 
     void ensureInitialized()
@@ -210,6 +372,110 @@ namespace OpenLoco::Vehicles::WaterBinaryMap
         _numLevels = 0;
         _initialized = false;
         _dirty = true;
+        
+        // Reset spiral state (will be properly initialized in initialize())
+        _updateSpiralX = 0;
+        _updateSpiralY = 0;
+        _updateSpiralRadius = 0;
+        _updateSpiralSide = 0;
+        _updateSpiralSteps = 0;
+        _prioritySpirals.clear();
+        _currentTick = 0;
+    }
+    
+    void update()
+    {
+        if (!_initialized)
+            return;
+            
+        _currentTick++;
+        constexpr int32_t kTilesPerFrame = 16;
+        int32_t tilesUpdated = 0;
+        
+        // Process priority spirals first (when ships get stuck)
+        while (!_prioritySpirals.empty() && tilesUpdated < kTilesPerFrame)
+        {
+            auto& spiral = _prioritySpirals.front();
+            
+            // Update current tile
+            int16_t worldX = static_cast<int16_t>(spiral.centerX + spiral.currentX);
+            int16_t worldY = static_cast<int16_t>(spiral.centerY + spiral.currentY);
+            updateTile(worldX, worldY);
+            tilesUpdated++;
+            
+            // Advance spiral
+            if (!advanceSpiral(spiral.currentX, spiral.currentY, 
+                              spiral.radius, spiral.side, spiral.steps, spiral.maxRadius))
+            {
+                // This spiral is done, remove it
+                _prioritySpirals.erase(_prioritySpirals.begin());
+            }
+        }
+        
+        // Fill remaining budget with continuous background spiral
+        int32_t centerX = kMapColumns / 2;
+        int32_t centerY = kMapRows / 2;
+        int32_t maxDim = std::max(static_cast<int32_t>(kMapRows), static_cast<int32_t>(kMapColumns));
+        
+        while (tilesUpdated < kTilesPerFrame)
+        {
+            // Calculate world position from center + offset
+            int16_t worldX = static_cast<int16_t>(centerX + _updateSpiralX);
+            int16_t worldY = static_cast<int16_t>(centerY + _updateSpiralY);
+            updateTile(worldX, worldY);
+            tilesUpdated++;
+            
+            // Advance spiral
+            if (!advanceSpiral(_updateSpiralX, _updateSpiralY, 
+                              _updateSpiralRadius, _updateSpiralSide, _updateSpiralSteps, maxDim / 2))
+            {
+                // Restart from center when we've covered the whole map
+                _updateSpiralX = 0;
+                _updateSpiralY = 0;
+                _updateSpiralRadius = 0;
+                _updateSpiralSide = 0;
+                _updateSpiralSteps = 0;
+            }
+        }
+    }
+    
+    void refreshAroundPosition(World::TilePos2 pos)
+    {
+        if (!_initialized)
+            return;
+            
+        constexpr uint32_t kMinTicksBetweenRefresh = 60; // ~1 second at 60 ticks/sec
+        
+        // Add a priority spiral centered at this position
+        // Check if we already have a recent spiral near this location to avoid duplicates
+        for (const auto& spiral : _prioritySpirals)
+        {
+            int32_t dx = spiral.centerX - pos.x;
+            int32_t dy = spiral.centerY - pos.y;
+            if (dx * dx + dy * dy < 100) // Within ~10 tiles
+            {
+                // Check if it was created recently
+                if (_currentTick - spiral.tickCreated < kMinTicksBetweenRefresh)
+                {
+                    return; // Already have a recent spiral nearby
+                }
+            }
+        }
+        
+        PrioritySpiral newSpiral;
+        newSpiral.centerX = pos.x;
+        newSpiral.centerY = pos.y;
+        newSpiral.currentX = 0;
+        newSpiral.currentY = 0;
+        newSpiral.radius = 0;
+        newSpiral.side = 0;
+        newSpiral.steps = 0;
+        newSpiral.maxRadius = 32; // Refresh 32 tiles around the stuck position
+        newSpiral.tickCreated = _currentTick;
+        
+        _prioritySpirals.push_back(newSpiral);
+        
+        Diagnostics::Logging::info("WaterBinaryMap: Added priority refresh spiral at ({}, {})", pos.x, pos.y);
     }
 
     bool isWater(TilePos2 pos, [[maybe_unused]] MicroZ waterLevel)
@@ -459,5 +725,20 @@ namespace OpenLoco::Vehicles::WaterBinaryMap
     {
         ensureInitialized();
         return _numLevels;
+    }
+    
+    std::vector<World::TilePos2> getRecentlyUpdatedTiles(uint32_t maxAgeTicks)
+    {
+        std::vector<World::TilePos2> result;
+        
+        for (const auto& update : _recentUpdates)
+        {
+            if (_currentTick - update.tick <= maxAgeTicks)
+            {
+                result.push_back(TilePos2{update.x, update.y});
+            }
+        }
+        
+        return result;
     }
 }
