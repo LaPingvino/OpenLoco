@@ -23,6 +23,7 @@
 #include "SceneManager.h"
 #include "World/CompanyManager.h"
 #include "World/StationManager.h"
+#include "Pathfinding/PathfindingSystem.h"
 #include <OpenLoco/Core/Numerics.hpp>
 
 namespace OpenLoco::GameCommands
@@ -1113,6 +1114,8 @@ namespace OpenLoco::GameCommands
             && totalCost != 0)
         {
             playConstructionPlacementSound(getPosition());
+            // Invalidate road pathfinding network
+            Pathfinding::PathfindingSystem::markRoadDirty(getPosition(), args.roadObjectId);
         }
         return totalCost;
     }

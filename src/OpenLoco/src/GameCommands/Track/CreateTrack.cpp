@@ -21,6 +21,7 @@
 #include "Objects/TrackObject.h"
 #include "World/CompanyManager.h"
 #include "World/StationManager.h"
+#include "Pathfinding/PathfindingSystem.h"
 #include <OpenLoco/Core/Numerics.hpp>
 
 namespace OpenLoco::GameCommands
@@ -594,6 +595,8 @@ namespace OpenLoco::GameCommands
         if ((flags & Flags::apply) && !(flags & (Flags::aiAllocated | Flags::ghost)))
         {
             playConstructionPlacementSound(getPosition());
+            // Invalidate track pathfinding network
+            Pathfinding::PathfindingSystem::markTrackDirty(getPosition(), args.trackObjectId);
         }
         return totalCost;
     }

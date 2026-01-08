@@ -46,6 +46,9 @@
 #include "Vehicles/VehicleHead.h"
 #include "Vehicles/VehicleManager.h"
 #include "Vehicles/WaterBinaryMap.h"
+#include "Pathfinding/PathfindingSystem.h"
+#include "Pathfinding/TrackNetwork.h"
+#include "Pathfinding/RoadNetwork.h"
 #include "World/CompanyManager.h"
 #include "World/IndustryManager.h"
 #include "World/StationManager.h"
@@ -1008,6 +1011,8 @@ namespace OpenLoco::Ui::Windows::MapWindow
     static uint8_t legendItemHeight = 10;
     static constexpr uint8_t kOverallGraphKeySize = 6;
 
+    static constexpr size_t kPathfindingModeCount = 5; // Water, Rail, Road, Tram, Aircraft
+
     static std::array<size_t, 6> legendLengths = {
         {
             kOverallGraphKeySize,
@@ -1015,7 +1020,7 @@ namespace OpenLoco::Ui::Windows::MapWindow
             ObjectManager::getMaxObjects(ObjectType::industry),
             0,
             Limits::kMaxCompanies,
-            0, // BSP Debug tab - no legend
+            kPathfindingModeCount, // Pathfinding debug tab
         }
     };
 
@@ -1555,6 +1560,52 @@ namespace OpenLoco::Ui::Windows::MapWindow
         }
     }
 
+    // Transport mode colors and labels for pathfinding debug
+    static constexpr struct {
+        Pathfinding::TransportMode mode;
+        StringId name;
+        PaletteIndex_t colour;
+    } kPathfindingModes[] = {
+        { Pathfinding::TransportMode::Water, StringIds::forbid_ships, PaletteIndex::blue5 },      // Ships - blue
+        { Pathfinding::TransportMode::Rail, StringIds::forbid_trains, PaletteIndex::purple3 },    // Trains - purple
+        { Pathfinding::TransportMode::Road, StringIds::forbid_buses, PaletteIndex::green8 },      // Buses/trucks - green
+        { Pathfinding::TransportMode::Tram, StringIds::forbid_trams, PaletteIndex::orangeA },     // Trams - orange
+        { Pathfinding::TransportMode::Aircraft, StringIds::forbid_aircraft, PaletteIndex::pink6 }, // Aircraft - pink
+    };
+
+    // Draw dynamic legend for pathfinding debug tab
+    // Click on items to toggle visibility
+    static void drawGraphKeyPathfinding(Window* self, Gfx::DrawingContext& drawingCtx, uint16_t x, uint16_t& y)
+    {
+        auto tr = Gfx::TextRenderer(drawingCtx);
+
+        for (uint8_t i = 0; i < std::size(kPathfindingModes); i++)
+        {
+            const auto& modeInfo = kPathfindingModes[i];
+            
+            // Draw color square (hide if this mode is selected/highlighted for toggling)
+            if (!(self->var_854 & (1 << i)) || !(mapFrameNumber & (1 << 2)))
+            {
+                drawingCtx.drawRect(x, y + 3, 5, 5, modeInfo.colour, Gfx::RectFlags::none);
+            }
+
+            FormatArguments args{};
+            args.push(modeInfo.name);
+
+            // Use white text if item is being hovered/selected
+            auto stringId = StringIds::small_black_string;
+            if (self->var_854 & (1 << i))
+            {
+                stringId = StringIds::small_white_string;
+            }
+
+            auto point = Point(x + 6, y);
+            tr.drawStringLeftClipped(point, 94, Colour::black, stringId, args);
+
+            y += 10;
+        }
+    }
+
     // 0x0046D81F
     static void formatVehicleString(Window* self, FormatArguments& args)
     {
@@ -1717,6 +1768,10 @@ namespace OpenLoco::Ui::Windows::MapWindow
 
                 case widx::tabOwnership:
                     drawGraphKeyCompanies(&self, drawingCtx, x, y);
+                    break;
+
+                case widx::tabBspDebug:
+                    drawGraphKeyPathfinding(&self, drawingCtx, x, y);
                     break;
             }
 
@@ -2306,7 +2361,375 @@ namespace OpenLoco::Ui::Windows::MapWindow
         }
     }
 
+    // Draw aircraft flight paths (visualization only, no pathfinding needed)
+    static void drawAircraftFlightPaths(Gfx::DrawingContext& drawingCtx)
+    {
+        for (auto* vehicle : VehicleManager::VehicleList())
+        {
+            if (vehicle->vehicleType != VehicleType::aircraft)
+                continue;
 
+            Vehicles::Vehicle train(*vehicle);
+            auto* head = train.head;
+
+            // Get aircraft position in tile coordinates
+            int16_t tileX = head->position.x / kTileSize;
+            int16_t tileY = head->position.y / kTileSize;
+            Point aircraftPos = tileToMinimapPos(tileX, tileY);
+
+            // Draw aircraft as a small X marker in pink
+            drawingCtx.drawLine(Point(aircraftPos.x - 2, aircraftPos.y - 2), 
+                               Point(aircraftPos.x + 2, aircraftPos.y + 2), PaletteIndex::pink6);
+            drawingCtx.drawLine(Point(aircraftPos.x - 2, aircraftPos.y + 2), 
+                               Point(aircraftPos.x + 2, aircraftPos.y - 2), PaletteIndex::pink6);
+
+            // Draw planned route from orders
+            Point prevPos = aircraftPos;
+            bool hasDrawnPath = false;
+
+            for (auto& order : Vehicles::OrderRingView(head->orderTableOffset))
+            {
+                if (order.hasFlags(Vehicles::OrderFlags::HasStation))
+                {
+                    auto* stationOrder = order.as<Vehicles::OrderStation>();
+                    if (stationOrder != nullptr)
+                    {
+                        auto stationId = stationOrder->getStation();
+                        auto* station = StationManager::get(stationId);
+                        if (station != nullptr)
+                        {
+                            // Get station position
+                            int16_t stationTileX = station->x / kTileSize;
+                            int16_t stationTileY = station->y / kTileSize;
+                            Point stationPos = tileToMinimapPos(stationTileX, stationTileY);
+
+                            // Draw dashed-style line to station (alternating pixels)
+                            // Use pink color for aircraft routes
+                            drawingCtx.drawLine(prevPos, stationPos, PaletteIndex::pink4);
+
+                            // Draw station marker
+                            drawingCtx.drawLine(Point(stationPos.x - 1, stationPos.y), 
+                                               Point(stationPos.x + 1, stationPos.y), PaletteIndex::pink6);
+                            drawingCtx.drawLine(Point(stationPos.x, stationPos.y - 1), 
+                                               Point(stationPos.x, stationPos.y + 1), PaletteIndex::pink6);
+
+                            prevPos = stationPos;
+                            hasDrawnPath = true;
+                        }
+                    }
+                }
+            }
+
+            // Mark aircraft as having active visualization if we drew something
+            if (hasDrawnPath)
+            {
+                Pathfinding::PathfindingSystem::setTransportModeActive(Pathfinding::TransportMode::Aircraft, true);
+            }
+        }
+    }
+
+    // Draw train positions and planned routes
+    static void drawTrainPathsOverlay(Gfx::DrawingContext& drawingCtx)
+    {
+        bool anyTrains = false;
+        
+        for (auto* vehicle : VehicleManager::VehicleList())
+        {
+            if (vehicle->vehicleType != VehicleType::train)
+                continue;
+
+            Vehicles::Vehicle train(*vehicle);
+            auto* head = train.head;
+
+            // Get train position in tile coordinates
+            int16_t tileX = head->position.x / kTileSize;
+            int16_t tileY = head->position.y / kTileSize;
+            Point trainPos = tileToMinimapPos(tileX, tileY);
+
+            // Draw train as a small square marker in purple
+            drawingCtx.drawRect(trainPos.x - 2, trainPos.y - 2, 5, 5, PaletteIndex::purple3, Gfx::RectFlags::none);
+
+            // Draw planned route from orders
+            Point prevPos = trainPos;
+
+            for (auto& order : Vehicles::OrderRingView(head->orderTableOffset))
+            {
+                if (order.hasFlags(Vehicles::OrderFlags::HasStation))
+                {
+                    auto* stationOrder = order.as<Vehicles::OrderStation>();
+                    if (stationOrder != nullptr)
+                    {
+                        auto stationId = stationOrder->getStation();
+                        auto* station = StationManager::get(stationId);
+                        if (station != nullptr)
+                        {
+                            int16_t stationTileX = station->x / kTileSize;
+                            int16_t stationTileY = station->y / kTileSize;
+                            Point stationPos = tileToMinimapPos(stationTileX, stationTileY);
+
+                            drawingCtx.drawLine(prevPos, stationPos, PaletteIndex::purple5);
+
+                            // Draw station marker
+                            drawingCtx.drawLine(Point(stationPos.x - 1, stationPos.y), 
+                                               Point(stationPos.x + 1, stationPos.y), PaletteIndex::purple3);
+                            drawingCtx.drawLine(Point(stationPos.x, stationPos.y - 1), 
+                                               Point(stationPos.x, stationPos.y + 1), PaletteIndex::purple3);
+
+                            prevPos = stationPos;
+                            anyTrains = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (anyTrains)
+        {
+            Pathfinding::PathfindingSystem::setTransportModeActive(Pathfinding::TransportMode::Rail, true);
+        }
+    }
+
+    // Draw bus/truck positions and planned routes
+    static void drawRoadVehiclePathsOverlay(Gfx::DrawingContext& drawingCtx)
+    {
+        bool anyRoadVehicles = false;
+        
+        for (auto* vehicle : VehicleManager::VehicleList())
+        {
+            if (vehicle->vehicleType != VehicleType::bus && vehicle->vehicleType != VehicleType::truck)
+                continue;
+
+            Vehicles::Vehicle train(*vehicle);
+            auto* head = train.head;
+
+            // Get vehicle position in tile coordinates
+            int16_t tileX = head->position.x / kTileSize;
+            int16_t tileY = head->position.y / kTileSize;
+            Point vehiclePos = tileToMinimapPos(tileX, tileY);
+
+            // Draw vehicle as a small diamond marker in green
+            drawingCtx.drawLine(Point(vehiclePos.x, vehiclePos.y - 2), Point(vehiclePos.x + 2, vehiclePos.y), PaletteIndex::green8);
+            drawingCtx.drawLine(Point(vehiclePos.x + 2, vehiclePos.y), Point(vehiclePos.x, vehiclePos.y + 2), PaletteIndex::green8);
+            drawingCtx.drawLine(Point(vehiclePos.x, vehiclePos.y + 2), Point(vehiclePos.x - 2, vehiclePos.y), PaletteIndex::green8);
+            drawingCtx.drawLine(Point(vehiclePos.x - 2, vehiclePos.y), Point(vehiclePos.x, vehiclePos.y - 2), PaletteIndex::green8);
+
+            // Draw planned route from orders
+            Point prevPos = vehiclePos;
+
+            for (auto& order : Vehicles::OrderRingView(head->orderTableOffset))
+            {
+                if (order.hasFlags(Vehicles::OrderFlags::HasStation))
+                {
+                    auto* stationOrder = order.as<Vehicles::OrderStation>();
+                    if (stationOrder != nullptr)
+                    {
+                        auto stationId = stationOrder->getStation();
+                        auto* station = StationManager::get(stationId);
+                        if (station != nullptr)
+                        {
+                            int16_t stationTileX = station->x / kTileSize;
+                            int16_t stationTileY = station->y / kTileSize;
+                            Point stationPos = tileToMinimapPos(stationTileX, stationTileY);
+
+                            drawingCtx.drawLine(prevPos, stationPos, PaletteIndex::green5);
+
+                            // Draw station marker
+                            drawingCtx.drawLine(Point(stationPos.x - 1, stationPos.y), 
+                                               Point(stationPos.x + 1, stationPos.y), PaletteIndex::green8);
+                            drawingCtx.drawLine(Point(stationPos.x, stationPos.y - 1), 
+                                               Point(stationPos.x, stationPos.y + 1), PaletteIndex::green8);
+
+                            prevPos = stationPos;
+                            anyRoadVehicles = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (anyRoadVehicles)
+        {
+            Pathfinding::PathfindingSystem::setTransportModeActive(Pathfinding::TransportMode::Road, true);
+        }
+    }
+
+    // Draw track network structure (nodes and edges)
+    static void drawTrackNetworkOverlay(Gfx::DrawingContext& drawingCtx)
+    {
+        auto& network = Pathfinding::PathfindingSystem::getTrackNetwork();
+        const auto& nodes = network.getNodes();
+        
+        if (nodes.empty())
+            return;
+
+        // Draw edges first (so nodes appear on top)
+        for (const auto& node : nodes)
+        {
+            int16_t fromTileX = node.pos.x / kTileSize;
+            int16_t fromTileY = node.pos.y / kTileSize;
+            Point fromPos = tileToMinimapPos(fromTileX, fromTileY);
+
+            for (uint32_t connIdx : node.connections)
+            {
+                if (connIdx < nodes.size())
+                {
+                    const auto& connNode = nodes[connIdx];
+                    int16_t toTileX = connNode.pos.x / kTileSize;
+                    int16_t toTileY = connNode.pos.y / kTileSize;
+                    Point toPos = tileToMinimapPos(toTileX, toTileY);
+
+                    // Draw edge in dark purple
+                    drawingCtx.drawLine(fromPos, toPos, PaletteIndex::purple7);
+                }
+            }
+        }
+
+        // Draw nodes
+        for (const auto& node : nodes)
+        {
+            int16_t tileX = node.pos.x / kTileSize;
+            int16_t tileY = node.pos.y / kTileSize;
+            Point nodePos = tileToMinimapPos(tileX, tileY);
+
+            // Different colors for junctions (multiple connections) vs regular segments
+            PaletteIndex_t colour = node.connections.size() > 2 
+                ? PaletteIndex::purple3  // Junction - bright purple
+                : PaletteIndex::purple5; // Regular - medium purple
+
+            if (node.hasSignal)
+            {
+                colour = PaletteIndex::red5; // Signals in red
+            }
+
+            // Draw small dot for node
+            drawingCtx.drawRect(nodePos.x - 1, nodePos.y - 1, 3, 3, colour, Gfx::RectFlags::none);
+        }
+    }
+
+    // Draw road network structure (nodes and edges)
+    static void drawRoadNetworkOverlay(Gfx::DrawingContext& drawingCtx)
+    {
+        auto& network = Pathfinding::PathfindingSystem::getRoadNetwork();
+        const auto& nodes = network.getNodes();
+        
+        if (nodes.empty())
+            return;
+
+        // Draw edges first
+        for (const auto& node : nodes)
+        {
+            int16_t fromTileX = node.pos.x / kTileSize;
+            int16_t fromTileY = node.pos.y / kTileSize;
+            Point fromPos = tileToMinimapPos(fromTileX, fromTileY);
+
+            for (uint32_t connIdx : node.connections)
+            {
+                if (connIdx < nodes.size())
+                {
+                    const auto& connNode = nodes[connIdx];
+                    int16_t toTileX = connNode.pos.x / kTileSize;
+                    int16_t toTileY = connNode.pos.y / kTileSize;
+                    Point toPos = tileToMinimapPos(toTileX, toTileY);
+
+                    // Different color for tram vs road
+                    PaletteIndex_t edgeColour = node.isTramTrack 
+                        ? PaletteIndex::orange6  // Tram tracks
+                        : PaletteIndex::green6;  // Roads
+                    
+                    drawingCtx.drawLine(fromPos, toPos, edgeColour);
+                }
+            }
+        }
+
+        // Draw nodes
+        for (const auto& node : nodes)
+        {
+            int16_t tileX = node.pos.x / kTileSize;
+            int16_t tileY = node.pos.y / kTileSize;
+            Point nodePos = tileToMinimapPos(tileX, tileY);
+
+            // Different colors for tram vs road and junctions
+            PaletteIndex_t colour;
+            if (node.isTramTrack)
+            {
+                colour = node.connections.size() > 2 
+                    ? PaletteIndex::orangeA  // Tram junction
+                    : PaletteIndex::orange6; // Tram segment
+            }
+            else
+            {
+                colour = node.connections.size() > 2 
+                    ? PaletteIndex::green8   // Road junction
+                    : PaletteIndex::green5;  // Road segment
+            }
+
+            // Draw small dot for node
+            drawingCtx.drawRect(nodePos.x - 1, nodePos.y - 1, 3, 3, colour, Gfx::RectFlags::none);
+        }
+    }
+
+    // Draw tram positions and planned routes
+    static void drawTramPathsOverlay(Gfx::DrawingContext& drawingCtx)
+    {
+        bool anyTrams = false;
+        
+        for (auto* vehicle : VehicleManager::VehicleList())
+        {
+            if (vehicle->vehicleType != VehicleType::tram)
+                continue;
+
+            Vehicles::Vehicle train(*vehicle);
+            auto* head = train.head;
+
+            // Get tram position in tile coordinates
+            int16_t tileX = head->position.x / kTileSize;
+            int16_t tileY = head->position.y / kTileSize;
+            Point tramPos = tileToMinimapPos(tileX, tileY);
+
+            // Draw tram as a small triangle marker in orange
+            drawingCtx.drawLine(Point(tramPos.x, tramPos.y - 2), Point(tramPos.x + 2, tramPos.y + 2), PaletteIndex::orangeA);
+            drawingCtx.drawLine(Point(tramPos.x + 2, tramPos.y + 2), Point(tramPos.x - 2, tramPos.y + 2), PaletteIndex::orangeA);
+            drawingCtx.drawLine(Point(tramPos.x - 2, tramPos.y + 2), Point(tramPos.x, tramPos.y - 2), PaletteIndex::orangeA);
+
+            // Draw planned route from orders
+            Point prevPos = tramPos;
+
+            for (auto& order : Vehicles::OrderRingView(head->orderTableOffset))
+            {
+                if (order.hasFlags(Vehicles::OrderFlags::HasStation))
+                {
+                    auto* stationOrder = order.as<Vehicles::OrderStation>();
+                    if (stationOrder != nullptr)
+                    {
+                        auto stationId = stationOrder->getStation();
+                        auto* station = StationManager::get(stationId);
+                        if (station != nullptr)
+                        {
+                            int16_t stationTileX = station->x / kTileSize;
+                            int16_t stationTileY = station->y / kTileSize;
+                            Point stationPos = tileToMinimapPos(stationTileX, stationTileY);
+
+                            drawingCtx.drawLine(prevPos, stationPos, PaletteIndex::orange6);
+
+                            // Draw station marker
+                            drawingCtx.drawLine(Point(stationPos.x - 1, stationPos.y), 
+                                               Point(stationPos.x + 1, stationPos.y), PaletteIndex::orangeA);
+                            drawingCtx.drawLine(Point(stationPos.x, stationPos.y - 1), 
+                                               Point(stationPos.x, stationPos.y + 1), PaletteIndex::orangeA);
+
+                            prevPos = stationPos;
+                            anyTrams = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (anyTrams)
+        {
+            Pathfinding::PathfindingSystem::setTransportModeActive(Pathfinding::TransportMode::Tram, true);
+        }
+    }
 
     // 0x0046B806
     static void drawScroll(Window& self, Gfx::DrawingContext& drawingCtx, [[maybe_unused]] const uint32_t scrollIndex)
@@ -2352,11 +2775,56 @@ namespace OpenLoco::Ui::Windows::MapWindow
             drawTownNames(drawingCtx);
         }
 
-        // Draw BSP pathfinding debug overlay when on BSP debug tab
+        // Draw pathfinding debug overlay when on pathfinding debug tab
         if (self.currentTab + widx::tabOverall == widx::tabBspDebug)
         {
-            drawBspDebugOverlay(drawingCtx);
-            drawShipPathsOverlay(drawingCtx);
+            // var_854 stores which mode is being hovered (for highlight), 
+            // but we use it as a filter - if a mode is clicked, only show that mode
+            // If var_854 == 0, show all modes
+            const uint32_t modeFilter = self.var_854;
+            const bool showAll = (modeFilter == 0);
+            
+            // Ship paths (water pathfinding) - index 0
+            if (showAll || (modeFilter & (1 << 0)))
+            {
+                drawBspDebugOverlay(drawingCtx);
+                drawShipPathsOverlay(drawingCtx);
+            }
+            
+            // Train paths - index 1
+            if (showAll || (modeFilter & (1 << 1)))
+            {
+                // Draw network structure first (behind vehicles)
+                drawTrackNetworkOverlay(drawingCtx);
+                // Then draw vehicle positions and routes on top
+                drawTrainPathsOverlay(drawingCtx);
+            }
+            
+            // Road vehicle (bus/truck) paths - index 2
+            if (showAll || (modeFilter & (1 << 2)))
+            {
+                // Draw road network (non-tram parts)
+                drawRoadNetworkOverlay(drawingCtx);
+                drawRoadVehiclePathsOverlay(drawingCtx);
+            }
+            
+            // Tram paths - index 3
+            if (showAll || (modeFilter & (1 << 3)))
+            {
+                // Tram network is part of RoadNetwork with isTramTrack flag
+                // Network already drawn above if road is visible, otherwise draw now
+                if (!(showAll || (modeFilter & (1 << 2))))
+                {
+                    drawRoadNetworkOverlay(drawingCtx);
+                }
+                drawTramPathsOverlay(drawingCtx);
+            }
+            
+            // Aircraft flight paths (visualization only) - index 4
+            if (showAll || (modeFilter & (1 << 4)))
+            {
+                drawAircraftFlightPaths(drawingCtx);
+            }
         }
     }
 

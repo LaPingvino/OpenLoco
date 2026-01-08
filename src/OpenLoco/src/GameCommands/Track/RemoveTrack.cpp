@@ -15,6 +15,7 @@
 #include "RemoveTrainStation.h"
 #include "Vehicles/Vehicle.h"
 #include "ViewportManager.h"
+#include "Pathfinding/PathfindingSystem.h"
 
 namespace OpenLoco::GameCommands
 {
@@ -240,6 +241,8 @@ namespace OpenLoco::GameCommands
             if (!(flags & (Flags::aiAllocated | Flags::ghost)))
             {
                 playTrackRemovalSound(args.pos);
+                // Invalidate track pathfinding network
+                Pathfinding::PathfindingSystem::markTrackDirty(args.pos, args.trackObjectId);
             }
         }
 

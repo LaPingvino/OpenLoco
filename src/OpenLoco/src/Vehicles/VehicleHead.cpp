@@ -3958,13 +3958,27 @@ namespace OpenLoco::Vehicles
 
                     if (bestResultDirection != 0xFF)
                     {
+                        // Reset failure count on successful pathfinding
+                        cachedPath.failureCount = 0;
                         const auto targetPos = toWorldSpace(initialTile) + kRotationOffset[bestResultDirection] + World::Pos2(16, 16);
                         return WaterPathingResult(targetPos);
                     }
                     else
                     {
-                        Diagnostics::Logging::warn("Ship {}: Tile A* to waypoint ({},{}) FAILED, falling back",
-                            enumValue(head.id), currentWaypoint.x, currentWaypoint.y);
+                        // Track consecutive failures to reach waypoint
+                        cachedPath.failureCount++;
+                        Diagnostics::Logging::warn("Ship {}: Tile A* to waypoint ({},{}) FAILED (failure {})",
+                            enumValue(head.id), currentWaypoint.x, currentWaypoint.y, cachedPath.failureCount);
+                        
+                        // If we've failed too many times, invalidate the path and force recalculation
+                        if (cachedPath.failureCount >= CachedBspPath::kMaxFailures)
+                        {
+                            Diagnostics::Logging::warn("Ship {}: Too many failures, invalidating path and rebuilding bitmap",
+                                enumValue(head.id));
+                            cachedPath.isValid = false;
+                            cachedPath.failureCount = 0;
+                            WaterBinaryMap::markDirty();
+                        }
                     }
                 }
                 else

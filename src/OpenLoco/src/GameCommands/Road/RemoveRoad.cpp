@@ -16,6 +16,7 @@
 #include "Scenario/ScenarioOptions.h"
 #include "SceneManager.h"
 #include "World/TownManager.h"
+#include "Pathfinding/PathfindingSystem.h"
 
 namespace OpenLoco::GameCommands
 {

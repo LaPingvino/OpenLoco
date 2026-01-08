@@ -70,6 +70,7 @@
 #include "Vehicles/Vehicle.h"
 #include "Vehicles/VehicleManager.h"
 #include "Vehicles/WaterBinaryMap.h"
+#include "Pathfinding/PathfindingSystem.h"
 #include "ViewportManager.h"
 #include "World/CompanyManager.h"
 #include "World/IndustryManager.h"
@@ -446,6 +447,7 @@ namespace OpenLoco
         IndustryManager::update();
         VehicleManager::update();
         Vehicles::WaterBinaryMap::updatePeriodicRefresh();
+        Pathfinding::PathfindingSystem::updatePeriodicRefresh();
         StationManager::update();
         EffectsManager::update();
         CompanyManager::update();
