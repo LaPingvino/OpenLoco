@@ -3904,7 +3904,9 @@ namespace OpenLoco::Vehicles
                 }
                 else
                 {
-                    Diagnostics::Logging::warn("Ship {}: BSP path NOT found!", enumValue(head.id));
+                    Diagnostics::Logging::warn("Ship {}: BSP path NOT found! Marking bitmap dirty for rebuild.", enumValue(head.id));
+                    // Rebuild bitmap in case terrain changed
+                    WaterBinaryMap::markDirty();
                 }
             }
 
@@ -3991,6 +3993,17 @@ namespace OpenLoco::Vehicles
 
         if (bestResultDirection == 0xFF)
         {
+            // Ship is stuck - rebuild water bitmap in case terrain changed
+            WaterBinaryMap::markDirty();
+            
+            // Invalidate cached BSP path to force recalculation
+            auto it = _cachedBspPaths.find(head.id);
+            if (it != _cachedBspPaths.end())
+            {
+                it->second.isValid = false;
+                Diagnostics::Logging::info("Ship {}: Stuck, invalidating path and marking bitmap dirty", enumValue(head.id));
+            }
+            
             return WaterPathingResult(toWorldSpace(initialTile) + World::Pos2(16, 16));
         }
 
